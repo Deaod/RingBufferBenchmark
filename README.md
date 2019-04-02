@@ -1,12 +1,12 @@
-#Ring Buffer Benchmark
+# Ring Buffer Benchmark
 
 A set of benchmarks for a few different ring buffer implementations. 
 
-##Set-Up
+## Set-Up
 
 This project uses C++17 features, which is only supported with CMake 3.8 or later.
 
-###Visual Studio 2017
+### Visual Studio 2017
 
 Execute the following inside the cloned repository:
 
@@ -22,6 +22,6 @@ RingBufferBenchmark.sln
 cd ..
 ```
 
-###Others
+### Others
 
 TBD
