@@ -14,7 +14,7 @@ template<
     int _align_log2 = 6,
     typename _difference_type = ptrdiff_t
 >
-struct alignas(((size_t) 1) << _align_log2) spsc_ring_buffer {
+struct alignas(((size_t)1) << _align_log2) spsc_ring_buffer_cached {
     using difference_type = _difference_type;
     static const auto size = size_t(1) << _buffer_size_log2;
     static const auto mask = ctu::bit_mask_v<size_t, _buffer_size_log2>;
@@ -30,18 +30,24 @@ struct alignas(((size_t) 1) << _align_log2) spsc_ring_buffer {
         if (length <= 0 || length >= size)
             return false;
 
-        auto consume_pos = _consume_pos.load(std::memory_order_acquire);
+        auto consume_pos = _consume_pos_cache;
         auto produce_pos = _produce_pos.load(std::memory_order_relaxed);
 
         auto rounded_length = ctu::round_up_bits(length + sizeof(difference_type), content_align_log2);
 
-        if ((produce_pos - consume_pos) > (size - rounded_length))
-            return false;
+        if ((produce_pos - consume_pos) > (size - rounded_length)) {
+            consume_pos = _consume_pos_cache = _consume_pos.load(std::memory_order_acquire);
+            if ((produce_pos - consume_pos) > (size - rounded_length))
+                return false;
+        }
 
         auto wrap_distance = size - (produce_pos & mask);
         if (wrap_distance < rounded_length) {
-            if ((produce_pos + wrap_distance - consume_pos) > (size - rounded_length))
-                return false;
+            if ((produce_pos + wrap_distance - consume_pos) > (size - rounded_length)) {
+                consume_pos = _consume_pos_cache = _consume_pos.load(std::memory_order_acquire);
+                if ((produce_pos + wrap_distance - consume_pos) > (size - rounded_length))
+                    return false;
+            }
 
             new (_buffer + (produce_pos & mask)) difference_type(-difference_type(wrap_distance));
             produce_pos += wrap_distance;
@@ -58,15 +64,18 @@ struct alignas(((size_t) 1) << _align_log2) spsc_ring_buffer {
 
     template<typename cbtype>
     bool consume(cbtype callback) noexcept(noexcept(callback(static_cast<const void*>(nullptr), difference_type(0)))) {
+        auto produce_pos = _produce_pos_cache;
         auto consume_pos = _consume_pos.load(std::memory_order_relaxed);
-        auto produce_pos = _produce_pos.load(std::memory_order_acquire);
 
-        if (produce_pos == consume_pos)
-            return false;
+        if (produce_pos == consume_pos) {
+            produce_pos = _produce_pos_cache = _produce_pos.load(std::memory_order_acquire);
+            if (produce_pos == consume_pos)
+                return false;
+        }
 
         difference_type length;
         memcpy(&length, _buffer + (consume_pos & mask), sizeof(length));
-        
+
         if (length < 0) {
             consume_pos += -length;
             memcpy(&length, _buffer + (consume_pos & mask), sizeof(length));
@@ -127,6 +136,10 @@ struct alignas(((size_t) 1) << _align_log2) spsc_ring_buffer {
 
 private:
     alignas(align) std::byte _buffer[size];
+
     alignas(align) std::atomic<size_t> _produce_pos = 0;
+    mutable size_t _consume_pos_cache = 0;
+
     alignas(align) std::atomic<size_t> _consume_pos = 0;
+    mutable size_t _produce_pos_cache = 0;
 };

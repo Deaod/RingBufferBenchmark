@@ -6,15 +6,6 @@
 
 namespace ctu {
 
-#if defined(_MSC_VER)
-#define PRAGMA(...) __pragma(__VA_ARGS__)
-#else
-#define PRAGMA(...) _Pragma(#__VA_ARGS__)
-#endif
-
-#define CTU_DETAIL_STRINGIFY(x) #x
-#define STRINGIFY(x) CTU_DETAIL_STRINGIFY(x)
-
 namespace _detail {
 template<typename... types>
 constexpr size_t _size_of_impl() {
@@ -95,12 +86,6 @@ template<typename type>
 constexpr type round_up_bits(type val, int bits) {
     const type mask = bit_mask<type>(bits);
     return (val + mask) & ~mask;
-}
-
-template<typename real>
-constexpr real deg_to_rad(real angle) {
-    constexpr real pi = real(3.14159265358979323846);
-    return angle * (pi / real(180.0));
 }
 
 } // namespace ctu

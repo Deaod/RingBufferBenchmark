@@ -2,7 +2,7 @@
 #include <cstddef>
 #include <cstdlib>
 
-#if _MSC_VER < 2000
+#if defined(_MSC_VER) && (_MSC_VER < 2000)
 #include <malloc.h>
 
 inline void* aligned_alloc(std::size_t alignment, std::size_t size) {
@@ -20,15 +20,7 @@ inline void aligned_free(void* ptr) {
 }
 
 #else
-
-inline void* aligned_alloc(std::size_t alignment, std::size_t size) {
-    return nullptr;
-}
-
-inline void aligned_free(void* ptr) {
-    
-}
-
+#error "No known way to implement aligned_alloc, please add new branch."
 #endif
 
 // For use with std::unique_ptr as deleter
