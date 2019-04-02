@@ -41,7 +41,6 @@ static void RingBuffer(benchmark::State& state) {
     static auto* buffer = new type{};
 
     auto& b = *buffer;
-    //size_t calls = 0;
     if (state.thread_index == 0) {
         auto size = state.range(0);
         for (auto _ : state) {
@@ -49,17 +48,9 @@ static void RingBuffer(benchmark::State& state) {
             while (counter < 10000) {
                 bool result = b.produce(size, [](void*) { return true; });
                 counter += int(result);
-                //calls += 1;
-                //if (result == false) {
-                //    state.PauseTiming();
-                //    _sleep(0);
-                //    //std::this_thread::sleep_for(std::chrono::seconds(0));
-                //    state.ResumeTiming();
-                //}
             }
             
         }
-        //state.counters["produce_calls"].value += calls - state.iterations() * 10000;
         state.SetItemsProcessed(state.iterations() * 10000);
         state.SetBytesProcessed(state.iterations() * 10000 * state.range(0));
     } else {
@@ -68,17 +59,8 @@ static void RingBuffer(benchmark::State& state) {
             while (counter < 10000) {
                 bool result = b.consume([](const void*, ptrdiff_t) { return true; });
                 counter += int(result);
-                //calls += 1;
-                //if (result == false) {
-                //    state.PauseTiming();
-                //    _sleep(0);
-                //    //std::this_thread::sleep_for(std::chrono::milliseconds(0));
-                //    state.ResumeTiming();
-                //}
             }
         }
-        //state.counters["consume_calls"].value += calls - state.iterations() * 10000;
-        //state.SetItemsProcessed(state.iterations() * 10000);
     }
 
     if (b.is_empty() == false) {
