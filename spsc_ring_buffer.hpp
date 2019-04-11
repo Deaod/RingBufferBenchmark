@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <type_traits>
 #include <array>
+#include <limits>
 #include "aligned_alloc.hpp"
 #include "compile_time_utilities.hpp"
 #include "scope_guard.hpp"
@@ -11,8 +12,8 @@
 template<
     int _buffer_size_log2,
     int _content_align_log2 = ctu::log2_v<sizeof(void*)>,
-    int _align_log2 = 6,
-    typename _difference_type = ptrdiff_t
+    typename _difference_type = ptrdiff_t,
+    int _align_log2 = 6
 >
 struct alignas(((size_t) 1) << _align_log2) spsc_ring_buffer {
     using difference_type = _difference_type;
@@ -21,7 +22,6 @@ struct alignas(((size_t) 1) << _align_log2) spsc_ring_buffer {
     static const auto align = size_t(1) << _align_log2;
     static const auto content_align_log2 = _content_align_log2;
 
-    static_assert(_buffer_size_log2 < ctu::bits_of<difference_type>);
     static_assert(std::is_signed_v<difference_type>);
     static_assert(content_align_log2 >= ctu::log2(sizeof(difference_type)));
 
@@ -30,10 +30,15 @@ struct alignas(((size_t) 1) << _align_log2) spsc_ring_buffer {
         if (length <= 0 || length >= size)
             return false;
 
+        auto rounded_length = ctu::round_up_bits(length + sizeof(difference_type), content_align_log2);
+
+        if constexpr (size >= size_t(std::numeric_limits<difference_type>::max())) {
+            if (rounded_length > size_t(std::numeric_limits<difference_type>::max()))
+                return false;
+        }
+
         auto consume_pos = _consume_pos.load(std::memory_order_acquire);
         auto produce_pos = _produce_pos.load(std::memory_order_relaxed);
-
-        auto rounded_length = ctu::round_up_bits(length + sizeof(difference_type), content_align_log2);
 
         if ((produce_pos - consume_pos) > (size - rounded_length))
             return false;
@@ -47,7 +52,7 @@ struct alignas(((size_t) 1) << _align_log2) spsc_ring_buffer {
             produce_pos += wrap_distance;
         }
 
-        new (_buffer + (produce_pos & mask)) difference_type(length);
+        new (_buffer + (produce_pos & mask)) difference_type(difference_type(length));
         if (callback(static_cast<void*>(_buffer + (produce_pos & mask) + sizeof(difference_type)))) {
             _produce_pos.store(produce_pos + rounded_length, std::memory_order_release);
             return true;
