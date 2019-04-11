@@ -1,13 +1,14 @@
 #pragma once
+#include <type_traits>
 
 template<typename functor>
 struct scope_guard {
     scope_guard(functor&& f) :
-        f(std::move(f))
+        f(std::forward<functor>(f))
     {}
 
     ~scope_guard() {
-        f();
+        this->f();
     }
 private:
     functor f;
