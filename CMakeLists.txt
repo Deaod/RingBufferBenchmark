@@ -14,6 +14,7 @@ add_executable(RingBufferBenchmark
     spsc_ring_buffer.hpp
     spsc_ring_buffer_cached.hpp
     spsc_ring_buffer_heap.hpp
+    follyProducerConsumerQueue.h
 )
 
 set_property(TARGET RingBufferBenchmark PROPERTY CXX_STANDARD 17)
