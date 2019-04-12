@@ -11,6 +11,7 @@ add_executable(RingBufferBenchmark
     aligned_alloc.hpp
     compile_time_utilities.hpp
     scope_guard.hpp
+    spsc_queue.hpp
     spsc_ring_buffer.hpp
     spsc_ring_buffer_cached.hpp
     spsc_ring_buffer_heap.hpp
