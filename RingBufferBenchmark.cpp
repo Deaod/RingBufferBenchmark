@@ -143,7 +143,13 @@ static void FollyQueue(benchmark::State& state) {
 
 template<typename type>
 static void Queue(benchmark::State& state) {
-    static auto* queue = new type{};
+    static std::atomic<type*> queue = nullptr;
+
+    if (state.thread_index == 0) {
+        queue = new type{};
+    } else {
+        while (queue.load(std::memory_order_relaxed) == nullptr) {}
+    }
 
     type& q = *queue;
     if (state.thread_index == 0) {
@@ -166,10 +172,13 @@ static void Queue(benchmark::State& state) {
                 counter += int(q.consume([](typename type::value_type*){ return true; }));
             }
         }
-    }
 
-    if (q.is_empty() == false) {
-        state.SkipWithError("Not Empty after test");
+        if (q.is_empty() == false) {
+            state.SkipWithError("Not Empty after test");
+        }
+
+        delete queue;
+        queue = nullptr;
     }
 }
 
