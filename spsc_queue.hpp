@@ -106,9 +106,9 @@ struct alignas((size_t) 1 << _align_log2) spsc_queue_cached {
         auto consume_pos = _consume_pos_cache;
         auto produce_pos = _produce_pos.load(std::memory_order_relaxed);
 
-        if ((produce_pos - consume_pos) >= size) {
+        if (produce_pos == size + consume_pos) {
             consume_pos = _consume_pos_cache = _consume_pos.load(std::memory_order_acquire);
-            if ((produce_pos - consume_pos) >= size) {
+            if (produce_pos == size + consume_pos) {
                 return false;
             }
         }
@@ -126,9 +126,9 @@ struct alignas((size_t) 1 << _align_log2) spsc_queue_cached {
         auto consume_pos = _consume_pos.load(std::memory_order_relaxed);
         auto produce_pos = _produce_pos_cache;
 
-        if ((produce_pos - consume_pos) == 0) {
+        if (produce_pos == consume_pos) {
             produce_pos = _produce_pos_cache = _produce_pos.load(std::memory_order_acquire);
-            if ((produce_pos - consume_pos) == 0) {
+            if (produce_pos == consume_pos) {
                 return false;
             }
         }
