@@ -17,7 +17,10 @@ add_executable(RingBufferBenchmark
     spsc_ring_buffer_heap.hpp
     follyProducerConsumerQueue.h
     rigtorpSPSCQueue.h
+    moodycamel/atomicops.h
+    moodycamel/readwriterqueue.h
 )
 
 set_property(TARGET RingBufferBenchmark PROPERTY CXX_STANDARD 17)
 target_link_libraries(RingBufferBenchmark benchmark)
+target_compile_options(RingBufferBenchmark PRIVATE -DMOODYCAMEL_CACHE_LINE_SIZE=128)
