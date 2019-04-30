@@ -4,6 +4,7 @@
 #include "spsc_ring_buffer_cached.hpp"
 #include "spsc_ring_buffer_heap.hpp"
 #include "follyProducerConsumerQueue.h"
+#include "rigtorpSPSCQueue.h"
 #include <chrono>
 #include <thread>
 #include <new>
@@ -174,6 +175,48 @@ static void Queue(benchmark::State& state) {
         }
 
         if (q.is_empty() == false) {
+            state.SkipWithError("Not Empty after test");
+        }
+
+        delete queue;
+        queue = nullptr;
+    }
+}
+
+template<typename type>
+static void RigtorpQueue(benchmark::State& state) {
+    static std::atomic<type*> queue = nullptr;
+
+    if (state.thread_index == 0) {
+        queue = new type{size_t(1) << (state.range(0) - ctu::log2_v<sizeof(typename type::value_type)>)};
+    } else {
+        while (queue.load(std::memory_order_relaxed) == nullptr) {}
+    }
+
+    type& q = *queue;
+    if (state.thread_index == 0) {
+        for (auto _ : state) {
+            int counter = 0;
+            while (counter < 10000) {
+                bool result = q.try_emplace();
+                counter += int(result);
+            }
+        }
+        state.SetItemsProcessed(state.iterations() * 10000);
+        state.SetBytesProcessed(state.iterations() * 10000 * sizeof(typename type::value_type));
+    } else {
+        for (auto _ : state) {
+            int counter = 0;
+            while (counter < 10000) {
+                auto ptr = q.front();
+                if (ptr != nullptr) {
+                    q.pop();
+                    counter += 1;
+                }
+            }
+        }
+
+        if (q.empty() == false) {
             state.SkipWithError("Not Empty after test");
         }
 
@@ -531,5 +574,23 @@ BENCHMARK_TEMPLATE(Queue, spsc_queue_cached<DummyContainer<64>, 21>)->Apply(conf
 BENCHMARK_TEMPLATE(Queue, spsc_queue_cached<DummyContainer<64>, 22>)->Apply(configure_queue);
 BENCHMARK_TEMPLATE(Queue, spsc_queue_cached<DummyContainer<64>, 23>)->Apply(configure_queue);
 BENCHMARK_TEMPLATE(Queue, spsc_queue_cached<DummyContainer<64>, 24>)->Apply(configure_queue);
+
+BENCHMARK_TEMPLATE(RigtorpQueue, rigtorp::SPSCQueue<DummyContainer<8>>)->Apply(configure_folly_queue);
+BENCHMARK_TEMPLATE(RigtorpQueue, rigtorp::SPSCQueue<DummyContainer<16>>)->Apply(configure_folly_queue);
+BENCHMARK_TEMPLATE(RigtorpQueue, rigtorp::SPSCQueue<DummyContainer<24>>)->Apply(configure_folly_queue);
+BENCHMARK_TEMPLATE(RigtorpQueue, rigtorp::SPSCQueue<DummyContainer<32>>)->Apply(configure_folly_queue);
+BENCHMARK_TEMPLATE(RigtorpQueue, rigtorp::SPSCQueue<DummyContainer<40>>)->Apply(configure_folly_queue);
+BENCHMARK_TEMPLATE(RigtorpQueue, rigtorp::SPSCQueue<DummyContainer<48>>)->Apply(configure_folly_queue);
+BENCHMARK_TEMPLATE(RigtorpQueue, rigtorp::SPSCQueue<DummyContainer<56>>)->Apply(configure_folly_queue);
+BENCHMARK_TEMPLATE(RigtorpQueue, rigtorp::SPSCQueue<DummyContainer<64>>)->Apply(configure_folly_queue);
+
+BENCHMARK_TEMPLATE(RigtorpQueue, rigtorp::SPSCQueueCached<DummyContainer<8>>)->Apply(configure_folly_queue);
+BENCHMARK_TEMPLATE(RigtorpQueue, rigtorp::SPSCQueueCached<DummyContainer<16>>)->Apply(configure_folly_queue);
+BENCHMARK_TEMPLATE(RigtorpQueue, rigtorp::SPSCQueueCached<DummyContainer<24>>)->Apply(configure_folly_queue);
+BENCHMARK_TEMPLATE(RigtorpQueue, rigtorp::SPSCQueueCached<DummyContainer<32>>)->Apply(configure_folly_queue);
+BENCHMARK_TEMPLATE(RigtorpQueue, rigtorp::SPSCQueueCached<DummyContainer<40>>)->Apply(configure_folly_queue);
+BENCHMARK_TEMPLATE(RigtorpQueue, rigtorp::SPSCQueueCached<DummyContainer<48>>)->Apply(configure_folly_queue);
+BENCHMARK_TEMPLATE(RigtorpQueue, rigtorp::SPSCQueueCached<DummyContainer<56>>)->Apply(configure_folly_queue);
+BENCHMARK_TEMPLATE(RigtorpQueue, rigtorp::SPSCQueueCached<DummyContainer<64>>)->Apply(configure_folly_queue);
 
 BENCHMARK_MAIN();
