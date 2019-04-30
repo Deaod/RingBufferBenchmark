@@ -131,7 +131,7 @@ struct alignas(((size_t) 1) << _align_log2) spsc_ring_buffer {
     }
 
 private:
-    alignas(align) std::byte _buffer[size];
+    alignas(align) std::byte _buffer[size]{};
     alignas(align) std::atomic<size_t> _produce_pos = 0;
     alignas(align) std::atomic<size_t> _consume_pos = 0;
 };

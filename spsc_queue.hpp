@@ -12,8 +12,8 @@ struct alignas((size_t) 1 << _align_log2) spsc_queue {
     static const auto align = size_t(1) << _align_log2;
 
     // callback should place an instance of value_type at the address that is passed to it.
-    template<typename cbtype>
-    bool produce(cbtype callback) noexcept(noexcept(callback(static_cast<void*>(nullptr)))) {
+    template<typename callable>
+    bool produce(callable&& callback) noexcept(noexcept(callback(static_cast<void*>(nullptr)))) {
         auto produce_pos = _produce_pos.load(std::memory_order_relaxed);
         auto next_index = produce_pos + 1;
         if (next_index == size) {
@@ -33,8 +33,8 @@ struct alignas((size_t) 1 << _align_log2) spsc_queue {
         return false;
     }
 
-    template<typename cbtype>
-    bool consume(cbtype callback) noexcept(noexcept(callback(static_cast<value_type*>(nullptr)))) {
+    template<typename callable>
+    bool consume(callable&& callback) noexcept(noexcept(callback(static_cast<value_type*>(nullptr)))) {
         auto consume_pos = _consume_pos.load(std::memory_order_relaxed);
         auto produce_pos = _produce_pos.load(std::memory_order_acquire);
 
@@ -60,8 +60,8 @@ struct alignas((size_t) 1 << _align_log2) spsc_queue {
     }
 
     // returns true if buffer is empty after this call
-    template<typename cbtype>
-    bool consume_all(cbtype callback) noexcept(noexcept(callback(static_cast<value_type*>(nullptr)))) {
+    template<typename callable>
+    bool consume_all(callable&& callback) noexcept(noexcept(callback(static_cast<value_type*>(nullptr)))) {
         auto consume_pos = _consume_pos.load(std::memory_order_acquire);
         auto produce_pos = _produce_pos.load(std::memory_order_acquire);
 
@@ -119,8 +119,8 @@ struct alignas((size_t) 1 << _align_log2) spsc_queue_cached {
     static const auto align = size_t(1) << _align_log2;
 
     // callback should place an instance of value_type at the address that is passed to it.
-    template<typename cbtype>
-    bool produce(cbtype callback) noexcept(noexcept(callback(static_cast<void*>(nullptr)))) {
+    template<typename callable>
+    bool produce(callable&& callback) noexcept(noexcept(callback(static_cast<void*>(nullptr)))) {
         auto produce_pos = _produce_pos.load(std::memory_order_relaxed);
         auto next_index = produce_pos + 1;
         if (next_index == size) {
@@ -143,8 +143,8 @@ struct alignas((size_t) 1 << _align_log2) spsc_queue_cached {
         return false;
     }
 
-    template<typename cbtype>
-    bool consume(cbtype callback) noexcept(noexcept(callback(static_cast<value_type*>(nullptr)))) {
+    template<typename callable>
+    bool consume(callable&& callback) noexcept(noexcept(callback(static_cast<value_type*>(nullptr)))) {
         auto consume_pos = _consume_pos.load(std::memory_order_relaxed);
         auto produce_pos = _produce_pos_cache;
 
@@ -154,7 +154,6 @@ struct alignas((size_t) 1 << _align_log2) spsc_queue_cached {
                 return false;
             }
         }
-
 
         value_type* elem = reinterpret_cast<value_type*>(_buffer + consume_pos * sizeof(value_type));
         if (callback(elem)) {
@@ -174,8 +173,8 @@ struct alignas((size_t) 1 << _align_log2) spsc_queue_cached {
     }
 
     // returns true if buffer is empty after this call
-    template<typename cbtype>
-    bool consume_all(cbtype callback) noexcept(noexcept(callback(static_cast<value_type*>(nullptr)))) {
+    template<typename callable>
+    bool consume_all(callable&& callback) noexcept(noexcept(callback(static_cast<value_type*>(nullptr)))) {
         auto consume_pos = _consume_pos.load(std::memory_order_acquire);
         auto produce_pos = _produce_pos.load(std::memory_order_acquire);
 
