@@ -28,7 +28,7 @@
 #include <utility>
 
 namespace folly {
-  constexpr size_t hardware_destructive_interference_size = 64;
+  constexpr size_t hardware_destructive_interference_size = 128;
 
 /*
  * ProducerConsumerQueue is a one producer and one consumer queue

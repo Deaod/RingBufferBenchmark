@@ -158,10 +158,7 @@ static void Queue(benchmark::State& state) {
         for (auto _ : state) {
             int counter = 0;
             while (counter < 10000) {
-                bool result = q.produce([](void* storage) {
-                    new(storage) typename type::value_type{};
-                    return true;
-                });
+                bool result = q.produce();
                 counter += int(result);
             }
         }

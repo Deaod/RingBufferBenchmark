@@ -3,8 +3,9 @@
 #include <atomic>
 #include <cstddef>
 #include <utility>
+#include <type_traits>
 
-template<typename _element_type, int _queue_size_log2, int _align_log2 = 6>
+template<typename _element_type, int _queue_size_log2, int _align_log2 = 7>
 struct alignas((size_t) 1 << _align_log2) spsc_queue {
     using value_type = _element_type;
     static const auto size = size_t(1) << _queue_size_log2;
@@ -12,8 +13,13 @@ struct alignas((size_t) 1 << _align_log2) spsc_queue {
     static const auto align = size_t(1) << _align_log2;
 
     // callback should place an instance of value_type at the address that is passed to it.
-    template<typename callable>
-    bool produce(callable&& callback) noexcept(noexcept(callback(static_cast<void*>(nullptr)))) {
+    template<typename... Args>
+    bool produce(Args&&... args) noexcept(std::is_nothrow_constructible_v<value_type, Args...>) {
+        static_assert(
+            std::is_constructible_v<value_type, Args...>,
+            "value_type must be constructible from Args..."
+        );
+
         auto produce_pos = _produce_pos.load(std::memory_order_relaxed);
         auto next_index = produce_pos + 1;
         if (next_index == size) {
@@ -25,12 +31,10 @@ struct alignas((size_t) 1 << _align_log2) spsc_queue {
             return false;
         }
 
-        if (callback(static_cast<void*>(_buffer + produce_pos * sizeof(value_type)))) {
-            _produce_pos.store(next_index, std::memory_order_release);
-            return true;
-        }
+        new(_buffer + produce_pos * sizeof(value_type)) value_type(std::forward<Args>(args)...);
 
-        return false;
+        _produce_pos.store(next_index, std::memory_order_release);
+        return true;
     }
 
     template<typename callable>
@@ -111,7 +115,7 @@ private:
     mutable size_t _produce_pos_cache = 0;
 };
 
-template<typename _element_type, int _queue_size_log2, int _align_log2 = 6>
+template<typename _element_type, int _queue_size_log2, int _align_log2 = 7>
 struct alignas((size_t) 1 << _align_log2) spsc_queue_cached {
     using value_type = _element_type;
     static const auto size = size_t(1) << _queue_size_log2;
@@ -119,8 +123,13 @@ struct alignas((size_t) 1 << _align_log2) spsc_queue_cached {
     static const auto align = size_t(1) << _align_log2;
 
     // callback should place an instance of value_type at the address that is passed to it.
-    template<typename callable>
-    bool produce(callable&& callback) noexcept(noexcept(callback(static_cast<void*>(nullptr)))) {
+    template<typename... Args>
+    bool produce(Args&&... args) noexcept(std::is_nothrow_constructible_v<value_type, Args...>) {
+        static_assert(
+            std::is_constructible_v<value_type, Args...>,
+            "value_type must be constructible from Args..."
+        );
+
         auto produce_pos = _produce_pos.load(std::memory_order_relaxed);
         auto next_index = produce_pos + 1;
         if (next_index == size) {
@@ -135,12 +144,10 @@ struct alignas((size_t) 1 << _align_log2) spsc_queue_cached {
             }
         }
 
-        if (callback(static_cast<void*>(_buffer + produce_pos * sizeof(value_type)))) {
-            _produce_pos.store(next_index, std::memory_order_release);
-            return true;
-        }
+        new(_buffer + produce_pos * sizeof(value_type)) value_type(std::forward<Args>(args)...);
 
-        return false;
+        _produce_pos.store(next_index, std::memory_order_release);
+        return true;
     }
 
     template<typename callable>
