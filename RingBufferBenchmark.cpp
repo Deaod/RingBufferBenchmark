@@ -5,6 +5,7 @@
 #include "spsc_ring_buffer_heap.hpp"
 #include "follyProducerConsumerQueue.h"
 #include "rigtorpSPSCQueue.h"
+#include "moodycamel/readwriterqueue.h"
 #include <chrono>
 #include <thread>
 #include <new>
@@ -217,6 +218,48 @@ static void RigtorpQueue(benchmark::State& state) {
         }
 
         if (q.empty() == false) {
+            state.SkipWithError("Not Empty after test");
+        }
+
+        delete queue;
+        queue = nullptr;
+    }
+}
+
+template<typename type>
+static void MoodycamelQueue(benchmark::State& state) {
+    static std::atomic<type*> queue = nullptr;
+
+    if (state.thread_index == 0) {
+        queue = new type{(size_t(1) << (state.range(0) - ctu::log2_v<sizeof(typename type::value_type)>)) - 1};
+    } else {
+        while (queue.load(std::memory_order_relaxed) == nullptr) {}
+    }
+
+    type& q = *queue;
+    if (state.thread_index == 0) {
+        for (auto _ : state) {
+            int counter = 0;
+            while (counter < 10000) {
+                bool result = q.try_emplace();
+                counter += int(result);
+            }
+        }
+        state.SetItemsProcessed(state.iterations() * 10000);
+        state.SetBytesProcessed(state.iterations() * 10000 * sizeof(typename type::value_type));
+    } else {
+        for (auto _ : state) {
+            int counter = 0;
+            while (counter < 10000) {
+                auto ptr = q.peek();
+                if (ptr != nullptr) {
+                    q.pop();
+                    counter += 1;
+                }
+            }
+        }
+
+        if (q.size_approx() != 0) {
             state.SkipWithError("Not Empty after test");
         }
 
@@ -592,5 +635,14 @@ BENCHMARK_TEMPLATE(RigtorpQueue, rigtorp::SPSCQueueCached<DummyContainer<40>>)->
 BENCHMARK_TEMPLATE(RigtorpQueue, rigtorp::SPSCQueueCached<DummyContainer<48>>)->Apply(configure_folly_queue);
 BENCHMARK_TEMPLATE(RigtorpQueue, rigtorp::SPSCQueueCached<DummyContainer<56>>)->Apply(configure_folly_queue);
 BENCHMARK_TEMPLATE(RigtorpQueue, rigtorp::SPSCQueueCached<DummyContainer<64>>)->Apply(configure_folly_queue);
+
+BENCHMARK_TEMPLATE(MoodycamelQueue, moodycamel::ReaderWriterQueue<DummyContainer<8>>)->Apply(configure_folly_queue);
+BENCHMARK_TEMPLATE(MoodycamelQueue, moodycamel::ReaderWriterQueue<DummyContainer<16>>)->Apply(configure_folly_queue);
+BENCHMARK_TEMPLATE(MoodycamelQueue, moodycamel::ReaderWriterQueue<DummyContainer<24>>)->Apply(configure_folly_queue);
+BENCHMARK_TEMPLATE(MoodycamelQueue, moodycamel::ReaderWriterQueue<DummyContainer<32>>)->Apply(configure_folly_queue);
+BENCHMARK_TEMPLATE(MoodycamelQueue, moodycamel::ReaderWriterQueue<DummyContainer<40>>)->Apply(configure_folly_queue);
+BENCHMARK_TEMPLATE(MoodycamelQueue, moodycamel::ReaderWriterQueue<DummyContainer<48>>)->Apply(configure_folly_queue);
+BENCHMARK_TEMPLATE(MoodycamelQueue, moodycamel::ReaderWriterQueue<DummyContainer<56>>)->Apply(configure_folly_queue);
+BENCHMARK_TEMPLATE(MoodycamelQueue, moodycamel::ReaderWriterQueue<DummyContainer<64>>)->Apply(configure_folly_queue);
 
 BENCHMARK_MAIN();
