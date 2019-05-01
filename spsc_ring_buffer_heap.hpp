@@ -13,7 +13,7 @@ template<
     int _buffer_size_log2,
     int _content_align_log2 = ctu::log2_v<sizeof(void*)>,
     typename _difference_type = ptrdiff_t,
-    int _align_log2 = 6
+    int _align_log2 = 7
 >
 struct alignas(((size_t)1) << _align_log2) spsc_ring_buffer_heap {
     using difference_type = _difference_type;

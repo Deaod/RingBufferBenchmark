@@ -282,6 +282,23 @@ BENCHMARK_TEMPLATE(RingBuffer, spsc_ring_buffer<28>)->Apply(configure_benchmark)
 BENCHMARK_TEMPLATE(RingBuffer, spsc_ring_buffer<29>)->Apply(configure_benchmark);
 BENCHMARK_TEMPLATE(RingBuffer, spsc_ring_buffer<30>)->Apply(configure_benchmark);
 
+BENCHMARK_TEMPLATE(RingBuffer, spsc_ring_buffer_masked<15>)->Apply(configure_benchmark);
+BENCHMARK_TEMPLATE(RingBuffer, spsc_ring_buffer_masked<16>)->Apply(configure_benchmark);
+BENCHMARK_TEMPLATE(RingBuffer, spsc_ring_buffer_masked<17>)->Apply(configure_benchmark);
+BENCHMARK_TEMPLATE(RingBuffer, spsc_ring_buffer_masked<18>)->Apply(configure_benchmark);
+BENCHMARK_TEMPLATE(RingBuffer, spsc_ring_buffer_masked<19>)->Apply(configure_benchmark);
+BENCHMARK_TEMPLATE(RingBuffer, spsc_ring_buffer_masked<20>)->Apply(configure_benchmark);
+BENCHMARK_TEMPLATE(RingBuffer, spsc_ring_buffer_masked<21>)->Apply(configure_benchmark);
+BENCHMARK_TEMPLATE(RingBuffer, spsc_ring_buffer_masked<22>)->Apply(configure_benchmark);
+BENCHMARK_TEMPLATE(RingBuffer, spsc_ring_buffer_masked<23>)->Apply(configure_benchmark);
+BENCHMARK_TEMPLATE(RingBuffer, spsc_ring_buffer_masked<24>)->Apply(configure_benchmark);
+BENCHMARK_TEMPLATE(RingBuffer, spsc_ring_buffer_masked<25>)->Apply(configure_benchmark);
+BENCHMARK_TEMPLATE(RingBuffer, spsc_ring_buffer_masked<26>)->Apply(configure_benchmark);
+BENCHMARK_TEMPLATE(RingBuffer, spsc_ring_buffer_masked<27>)->Apply(configure_benchmark);
+BENCHMARK_TEMPLATE(RingBuffer, spsc_ring_buffer_masked<28>)->Apply(configure_benchmark);
+BENCHMARK_TEMPLATE(RingBuffer, spsc_ring_buffer_masked<29>)->Apply(configure_benchmark);
+BENCHMARK_TEMPLATE(RingBuffer, spsc_ring_buffer_masked<30>)->Apply(configure_benchmark);
+
 BENCHMARK_TEMPLATE(RingBuffer, spsc_ring_buffer_cached<15>)->Apply(configure_benchmark);
 BENCHMARK_TEMPLATE(RingBuffer, spsc_ring_buffer_cached<16>)->Apply(configure_benchmark);
 BENCHMARK_TEMPLATE(RingBuffer, spsc_ring_buffer_cached<17>)->Apply(configure_benchmark);
@@ -298,6 +315,23 @@ BENCHMARK_TEMPLATE(RingBuffer, spsc_ring_buffer_cached<27>)->Apply(configure_ben
 BENCHMARK_TEMPLATE(RingBuffer, spsc_ring_buffer_cached<28>)->Apply(configure_benchmark);
 BENCHMARK_TEMPLATE(RingBuffer, spsc_ring_buffer_cached<29>)->Apply(configure_benchmark);
 BENCHMARK_TEMPLATE(RingBuffer, spsc_ring_buffer_cached<30>)->Apply(configure_benchmark);
+
+BENCHMARK_TEMPLATE(RingBuffer, spsc_ring_buffer_cached_masked<15>)->Apply(configure_benchmark);
+BENCHMARK_TEMPLATE(RingBuffer, spsc_ring_buffer_cached_masked<16>)->Apply(configure_benchmark);
+BENCHMARK_TEMPLATE(RingBuffer, spsc_ring_buffer_cached_masked<17>)->Apply(configure_benchmark);
+BENCHMARK_TEMPLATE(RingBuffer, spsc_ring_buffer_cached_masked<18>)->Apply(configure_benchmark);
+BENCHMARK_TEMPLATE(RingBuffer, spsc_ring_buffer_cached_masked<19>)->Apply(configure_benchmark);
+BENCHMARK_TEMPLATE(RingBuffer, spsc_ring_buffer_cached_masked<20>)->Apply(configure_benchmark);
+BENCHMARK_TEMPLATE(RingBuffer, spsc_ring_buffer_cached_masked<21>)->Apply(configure_benchmark);
+BENCHMARK_TEMPLATE(RingBuffer, spsc_ring_buffer_cached_masked<22>)->Apply(configure_benchmark);
+BENCHMARK_TEMPLATE(RingBuffer, spsc_ring_buffer_cached_masked<23>)->Apply(configure_benchmark);
+BENCHMARK_TEMPLATE(RingBuffer, spsc_ring_buffer_cached_masked<24>)->Apply(configure_benchmark);
+BENCHMARK_TEMPLATE(RingBuffer, spsc_ring_buffer_cached_masked<25>)->Apply(configure_benchmark);
+BENCHMARK_TEMPLATE(RingBuffer, spsc_ring_buffer_cached_masked<26>)->Apply(configure_benchmark);
+BENCHMARK_TEMPLATE(RingBuffer, spsc_ring_buffer_cached_masked<27>)->Apply(configure_benchmark);
+BENCHMARK_TEMPLATE(RingBuffer, spsc_ring_buffer_cached_masked<28>)->Apply(configure_benchmark);
+BENCHMARK_TEMPLATE(RingBuffer, spsc_ring_buffer_cached_masked<29>)->Apply(configure_benchmark);
+BENCHMARK_TEMPLATE(RingBuffer, spsc_ring_buffer_cached_masked<30>)->Apply(configure_benchmark);
 
 BENCHMARK_TEMPLATE(RingBuffer, spsc_ring_buffer_heap<15>)->Apply(configure_benchmark);
 BENCHMARK_TEMPLATE(RingBuffer, spsc_ring_buffer_heap<16>)->Apply(configure_benchmark);

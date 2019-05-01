@@ -12,7 +12,6 @@ struct alignas((size_t) 1 << _align_log2) spsc_queue {
     static const auto mask = size - 1;
     static const auto align = size_t(1) << _align_log2;
 
-    // callback should place an instance of value_type at the address that is passed to it.
     template<typename... Args>
     bool produce(Args&&... args) noexcept(std::is_nothrow_constructible_v<value_type, Args...>) {
         static_assert(
@@ -122,7 +121,6 @@ struct alignas((size_t) 1 << _align_log2) spsc_queue_cached {
     static const auto mask = size - 1;
     static const auto align = size_t(1) << _align_log2;
 
-    // callback should place an instance of value_type at the address that is passed to it.
     template<typename... Args>
     bool produce(Args&&... args) noexcept(std::is_nothrow_constructible_v<value_type, Args...>) {
         static_assert(
