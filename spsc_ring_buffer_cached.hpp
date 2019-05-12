@@ -56,7 +56,7 @@ struct alignas(((size_t)1) << _align_log2) spsc_ring_buffer_cached {
                 consume_pos = _consume_pos_cache = _consume_pos.load(std::memory_order_acquire);
                 fill_level = (produce_pos - consume_pos);
                 if (fill_level > size) fill_level += size;
-                if ((fill_level + wrap_distance) > (size - rounded_length))
+                if ((fill_level + wrap_distance) >= (size - rounded_length))
                     return false;
             }
 

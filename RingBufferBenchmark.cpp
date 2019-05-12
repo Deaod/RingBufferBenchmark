@@ -72,9 +72,15 @@ void configure_queue(benchmark::internal::Benchmark* bench) {
 
 template<typename type>
 static void RingBuffer(benchmark::State& state) {
-    static auto* buffer = new type{};
+    static std::atomic<type*> buffer = nullptr;
 
-    auto& b = *buffer;
+    if (state.thread_index == 0) {
+        buffer = new type{};
+    } else {
+        while (buffer.load(std::memory_order_relaxed) == nullptr) {}
+    }
+
+    type& b = *buffer;
     if (state.thread_index == 0) {
         auto size = state.range(0);
         for (auto _ : state) {
@@ -94,10 +100,13 @@ static void RingBuffer(benchmark::State& state) {
                 counter += int(result);
             }
         }
-    }
 
-    if (b.is_empty() == false) {
-        state.SkipWithError("Not Empty after test");
+        if (b.is_empty() == false) {
+            state.SkipWithError("Not Empty after test");
+        }
+
+        delete buffer;
+        buffer = nullptr;
     }
 }
 

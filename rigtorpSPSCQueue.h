@@ -45,7 +45,7 @@ public:
     assert(alignof(SPSCQueue<T>) >= kCacheLineSize);
     assert(reinterpret_cast<char *>(&tail_) -
                reinterpret_cast<char *>(&head_) >=
-           static_cast<ssize_t>(kCacheLineSize));
+           static_cast<ptrdiff_t>(kCacheLineSize));
   }
 
   ~SPSCQueue() {
@@ -189,7 +189,7 @@ public:
         assert(alignof(SPSCQueue<T>) >= kCacheLineSize);
         assert(reinterpret_cast<char *>(&tail_) -
             reinterpret_cast<char *>(&head_) >=
-            static_cast<ssize_t>(kCacheLineSize));
+            static_cast<ptrdiff_t>(kCacheLineSize));
     }
 
     ~SPSCQueueCached() {
