@@ -228,3 +228,238 @@ private:
     alignas(align) std::atomic<size_t> _consume_pos = 0;
     mutable size_t _produce_pos_cache = 0;
 };
+
+template<typename _element_type, int _queue_size, int _chunk_size_log2 = 10, int _align_log2 = 7>
+struct alignas((size_t)1 << _align_log2) spsc_queue_chunked {
+    using value_type = _element_type;
+    static const auto size = _queue_size;
+    static const auto chunk_size = size_t(1) << _chunk_size_log2;
+    static const auto chunk_mask = chunk_size - 1;
+    static const auto chunk_count = ((size / chunk_size) + 1);
+    static const auto align = size_t(1) << _align_log2;
+    static const auto num_pages = (size * sizeof(value_type)) >> 12;
+
+    spsc_queue_chunked() {
+        for (size_t i = 0; i < chunk_count - 1; i += 1) {
+            _chunks[i]._next = _chunks + i + 1;
+        }
+        _chunks[chunk_count - 1]._next = _chunks;
+
+        _head = _chunks;
+        _tail = _chunks;
+    }
+
+    spsc_queue_chunked(const spsc_queue_chunked& other) {
+        memcpy(this, &other, sizeof(*this));
+
+        for (size_t i = 0; i < chunk_count - 1; i += 1) {
+            _chunks[i]._next = _chunks + i + 1;
+        }
+        _chunks[chunk_count - 1]._next = _chunks;
+
+        _head = _chunks + (other._head - other._chunks);
+        _tail = _chunks + (other._tail - other._chunks);
+    }
+
+    spsc_queue_chunked& operator=(const spsc_queue_chunked& other) {
+        memcpy(this, &other, sizeof(*this));
+
+        for (size_t i = 0; i < chunk_count - 1; i += 1) {
+            _chunks[i]._next = _chunks + i + 1;
+        }
+        _chunks[chunk_count - 1]._next = _chunks;
+
+        _head = _chunks + (other._head - other._chunks);
+        _tail = _chunks + (other._tail - other._chunks);
+
+        return *this;
+    }
+
+    struct alignas(align) chunk {
+        bool is_empty() const {
+            auto consume_pos = _consume_pos.load(std::memory_order_acquire);
+            auto produce_pos = _produce_pos.load(std::memory_order_acquire);
+
+            return consume_pos == produce_pos;
+        }
+
+        std::byte _buffer[chunk_size * sizeof(value_type)]{};
+
+        alignas(align) std::atomic<size_t> _produce_pos = 0;
+        mutable size_t _consume_pos_cache = 0;
+
+        alignas(align) std::atomic<size_t> _consume_pos = 0;
+        mutable size_t _produce_pos_cache = 0;
+
+        alignas(align) chunk* _next = nullptr;
+    };
+
+    template<typename... Args>
+    bool produce(Args&&... args) noexcept(std::is_nothrow_constructible_v<value_type, Args...>) {
+        static_assert(
+            std::is_constructible_v<value_type, Args...>,
+            "value_type must be constructible from Args..."
+        );
+
+        auto head = _head.load(std::memory_order_relaxed);
+
+        auto produce_pos = head->_produce_pos.load(std::memory_order_relaxed);
+        auto next_index = (produce_pos + 1) & chunk_mask;
+
+        auto consume_pos = head->_consume_pos_cache;
+        if (next_index == consume_pos) {
+            consume_pos = head->_consume_pos_cache = head->_consume_pos.load(std::memory_order_acquire);
+            if (next_index == consume_pos) {
+                head = head->_next;
+
+                auto tail = _tail.load(std::memory_order_acquire);
+                if (head == tail) {
+                    return false;
+                }
+
+                produce_pos = head->_produce_pos.load(std::memory_order_relaxed);
+                next_index = (produce_pos + 1) & chunk_mask;
+
+                consume_pos = head->_consume_pos_cache = head->_consume_pos.load(std::memory_order_acquire);
+                if (produce_pos == consume_pos) {
+                    return false;
+                }
+
+                new(head->_buffer + (produce_pos * sizeof(value_type))) value_type(std::forward<Args>(args)...);
+                head->_produce_pos.store(next_index, std::memory_order_release);
+                _head.store(head, std::memory_order_release);
+                return true;
+            }
+        }
+
+        new(head->_buffer + (produce_pos * sizeof(value_type))) value_type(std::forward<Args>(args)...);
+        head->_produce_pos.store(next_index, std::memory_order_release);
+
+        return true;
+    }
+
+    template<typename callable>
+    bool consume(callable&& callback) noexcept(noexcept(callback(static_cast<value_type*>(nullptr)))) {
+        auto tail = _tail.load(std::memory_order_relaxed);
+
+        auto consume_pos = tail->_consume_pos.load(std::memory_order_relaxed);
+        auto produce_pos = tail->_produce_pos_cache;
+
+        if (produce_pos == consume_pos) {
+            produce_pos = tail->_produce_pos_cache = tail->_produce_pos.load(std::memory_order_acquire);
+            if (produce_pos == consume_pos) {
+                auto head = _head.load(std::memory_order_acquire);
+                if (tail == head) {
+                    return false;
+                }
+
+                tail = tail->_next;
+
+                consume_pos = tail->_consume_pos.load(std::memory_order_relaxed);
+                produce_pos = tail->_produce_pos_cache = tail->_produce_pos.load(std::memory_order_acquire);
+
+                if (produce_pos == consume_pos) {
+                    return false;
+                }
+
+                value_type* elem = reinterpret_cast<value_type*>(tail->_buffer + (consume_pos * sizeof(value_type)));
+                auto result = callback(elem);
+                if (result) {
+                    elem->~value_type();
+
+                    tail->_consume_pos.store((consume_pos + 1) & chunk_mask, std::memory_order_release);
+                }
+
+                _tail.store(tail, std::memory_order_release);
+
+                return result;
+            }
+        }
+
+        value_type* elem = reinterpret_cast<value_type*>(tail->_buffer + (consume_pos * sizeof(value_type)));
+        if (callback(elem)) {
+            elem->~value_type();
+            tail->_consume_pos.store((consume_pos + 1) & chunk_mask, std::memory_order_release);
+            return true;
+        }
+
+        return false;
+    }
+
+    // returns true if buffer is empty after this call
+    template<typename callable>
+    bool consume_all(callable callback) noexcept(noexcept(callback(static_cast<value_type*>(nullptr)))) {
+        auto tail = _tail.load(std::memory_order_relaxed);
+        auto head = _head.load(std::memory_order_acquire);
+
+        scope_guard g([this, &tail] {
+            this->_tail.store(tail, std::memory_order_release);
+        });
+
+        while (tail != head) {
+            while (tail != head) {
+                auto consume_pos = tail->_consume_pos.load(std::memory_order_relaxed);
+                auto produce_pos = tail->_produce_pos.load(std::memory_order_acquire);
+
+                scope_guard g([&tail, &consume_pos] {
+                    tail->_consume_pos.store(consume_pos, std::memory_order_release);
+                });
+
+                while (consume_pos != produce_pos) {
+                    void* addr = tail->_buffer + (consume_pos * sizeof(value_type));
+                    value_type* elem = reinterpret_cast<value_type*>(addr);
+
+                    if (callback(elem) == false) {
+                        return false;
+                    }
+
+                    elem->~value_type();
+
+                    consume_pos = (consume_pos + 1) & chunk_mask;
+                }
+
+                tail = tail->_next;
+            }
+
+            auto consume_pos = tail->_consume_pos.load(std::memory_order_relaxed);
+            auto produce_pos = tail->_produce_pos.load(std::memory_order_acquire);
+
+            if (produce_pos == consume_pos)
+                return true;
+
+            scope_guard g([&tail, &consume_pos] {
+                tail->_consume_pos.store(consume_pos, std::memory_order_release);
+            });
+
+            while (consume_pos != produce_pos) {
+                while (consume_pos != produce_pos) {
+                    void* addr = tail->_buffer + (consume_pos * sizeof(value_type));
+                    value_type* elem = reinterpret_cast<value_type*>(addr);
+
+                    if (callback(elem) == false) {
+                        return false;
+                    }
+
+                    elem->~value_type();
+
+                    consume_pos = (consume_pos + 1) & chunk_mask;
+                }
+
+                produce_pos = _produce_pos.load(std::memory_order_acquire);
+            }
+
+            head = _head.load(std::memory_order_acquire);
+        }
+
+        return true;
+    }
+
+    bool is_empty() const {
+        return _head.load(std::memory_order_acquire)->is_empty();
+    }
+
+private:
+    alignas(align) chunk _chunks[chunk_count]{};
+    alignas(align) std::atomic<chunk*> _head = nullptr;
+    alignas(align) std::atomic<chunk*> _tail = nullptr;
+};
