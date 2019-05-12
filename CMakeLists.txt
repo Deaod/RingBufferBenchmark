@@ -24,3 +24,14 @@ add_executable(RingBufferBenchmark
 set_property(TARGET RingBufferBenchmark PROPERTY CXX_STANDARD 17)
 target_link_libraries(RingBufferBenchmark benchmark)
 target_compile_options(RingBufferBenchmark PRIVATE -DMOODYCAMEL_CACHE_LINE_SIZE=128)
+
+if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
+    target_compile_options(RingBufferBenchmark PRIVATE "-mavx")
+elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
+    target_compile_options(RingBufferBenchmark PRIVATE "-mavx")
+elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
+    target_compile_options(RingBufferBenchmark PRIVATE "/arch:AVX")
+else()
+    message(ERROR "Unknown compiler")
+endif()
+
