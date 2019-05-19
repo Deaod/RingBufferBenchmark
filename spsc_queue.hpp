@@ -777,7 +777,7 @@ struct alignas((size_t)1 << _align_log2) spsc_queue_cached_ptr {
 
         auto produce_pos = _produce_pos.load(std::memory_order_relaxed);
         auto next_index = (produce_pos + 1);
-        if (next_index == (value_type*)_buffer + chunk_size) {
+        if (next_index == (value_type*)_buffer + size) {
             next_index = (value_type*)_buffer;
         }
 
@@ -812,7 +812,7 @@ struct alignas((size_t)1 << _align_log2) spsc_queue_cached_ptr {
             consume_pos->~value_type();
 
             auto next_index = (consume_pos + 1);
-            if (next_index == (value_type*)_buffer + chunk_size) {
+            if (next_index == (value_type*)_buffer + size) {
                 next_index = (value_type*)_buffer;
             }
 
@@ -847,7 +847,7 @@ struct alignas((size_t)1 << _align_log2) spsc_queue_cached_ptr {
             consume_pos->~value_type();
 
             consume_pos = (consume_pos + 1);
-            if (consume_pos == (value_type*)_buffer + chunk_size) {
+            if (consume_pos == (value_type*)_buffer + size) {
                 consume_pos = (value_type*)_buffer;
             }
         }
