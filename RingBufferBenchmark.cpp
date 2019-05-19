@@ -11,6 +11,16 @@
 #include <thread>
 #include <new>
 
+#if defined(_WIN32)
+#include <Windows.h>
+#define ASSIGN_THREAD_AFFINITY(affinity) do { SetThreadAffinityMask(GetCurrentThread(), affinity); } while(0)
+#else
+#define ASSIGN_THREAD_AFFINITY(affinity) do { } while(0)
+#endif
+
+constexpr uint64_t Thread1Affinity = 1 << 0;
+constexpr uint64_t Thread2Affinity = 1 << 2;
+
 void configure_benchmark(benchmark::internal::Benchmark* bench) {
     bench->Threads(2);
     bench->Repetitions(200);
@@ -83,6 +93,7 @@ static void RingBuffer(benchmark::State& state) {
 
     type& b = *buffer;
     if (state.thread_index == 0) {
+        ASSIGN_THREAD_AFFINITY(Thread1Affinity);
         auto size = state.range(0);
         for (auto _ : state) {
             int counter = 0;
@@ -94,6 +105,7 @@ static void RingBuffer(benchmark::State& state) {
         state.SetItemsProcessed(state.iterations() * 10000);
         state.SetBytesProcessed(state.iterations() * 10000 * state.range(0));
     } else {
+        ASSIGN_THREAD_AFFINITY(Thread2Affinity);
         for (auto _ : state) {
             int counter = 0;
             while (counter < 10000) {
@@ -123,6 +135,7 @@ static void FollyQueue(benchmark::State& state) {
 
     type& q = *queue;
     if (state.thread_index == 0) {
+        ASSIGN_THREAD_AFFINITY(Thread1Affinity);
         for (auto _ : state) {
             int counter = 0;
             while (counter < 10000) {
@@ -133,6 +146,7 @@ static void FollyQueue(benchmark::State& state) {
         state.SetItemsProcessed(state.iterations() * 10000);
         state.SetBytesProcessed(state.iterations() * 10000 * sizeof(typename type::value_type));
     } else {
+        ASSIGN_THREAD_AFFINITY(Thread2Affinity);
         for (auto _ : state) {
             int counter = 0;
             while (counter < 10000) {
@@ -165,6 +179,7 @@ static void Queue(benchmark::State& state) {
 
     type& q = *queue;
     if (state.thread_index == 0) {
+        ASSIGN_THREAD_AFFINITY(Thread1Affinity);
         for (auto _ : state) {
             int counter = 0;
             while (counter < 10000) {
@@ -175,10 +190,55 @@ static void Queue(benchmark::State& state) {
         state.SetItemsProcessed(state.iterations() * 10000);
         state.SetBytesProcessed(state.iterations() * 10000 * sizeof(typename type::value_type));
     } else {
+        ASSIGN_THREAD_AFFINITY(Thread2Affinity);
         for (auto _ : state) {
             int counter = 0;
             while (counter < 10000) {
                 counter += int(q.consume([](typename type::value_type*){ return true; }));
+            }
+        }
+
+        if (q.is_empty() == false) {
+            state.SkipWithError("Not Empty after test");
+        }
+
+        delete queue;
+        queue = nullptr;
+    }
+}
+
+template<typename type>
+static void QueueMultiple(benchmark::State& state) {
+    static std::atomic<type*> queue = nullptr;
+
+    if (state.thread_index == 0) {
+        queue = new type{};
+    }
+    else {
+        while (queue.load(std::memory_order_relaxed) == nullptr) {}
+    }
+
+    type& q = *queue;
+    if (state.thread_index == 0) {
+        ASSIGN_THREAD_AFFINITY(Thread1Affinity);
+        for (auto _ : state) {
+            int counter = 0;
+            while (counter < 10000) {
+                bool result = q.produce();
+                counter += int(result);
+            }
+        }
+        state.SetItemsProcessed(state.iterations() * 10000);
+        state.SetBytesProcessed(state.iterations() * 10000 * sizeof(typename type::value_type));
+    }
+    else {
+        ASSIGN_THREAD_AFFINITY(Thread2Affinity);
+        int64_t counter = 0;
+        int64_t target = 0;
+        for (auto _ : state) {
+            target += 10000;
+            while(counter < target) {
+                counter += q.consume_all([](typename type::value_type * val) { return true; });
             }
         }
 
@@ -203,6 +263,7 @@ static void RigtorpQueue(benchmark::State& state) {
 
     type& q = *queue;
     if (state.thread_index == 0) {
+        ASSIGN_THREAD_AFFINITY(Thread1Affinity);
         for (auto _ : state) {
             int counter = 0;
             while (counter < 10000) {
@@ -213,6 +274,7 @@ static void RigtorpQueue(benchmark::State& state) {
         state.SetItemsProcessed(state.iterations() * 10000);
         state.SetBytesProcessed(state.iterations() * 10000 * sizeof(typename type::value_type));
     } else {
+        ASSIGN_THREAD_AFFINITY(Thread2Affinity);
         for (auto _ : state) {
             int counter = 0;
             while (counter < 10000) {
@@ -245,6 +307,7 @@ static void MoodycamelQueue(benchmark::State& state) {
 
     type& q = *queue;
     if (state.thread_index == 0) {
+        ASSIGN_THREAD_AFFINITY(Thread1Affinity);
         for (auto _ : state) {
             int counter = 0;
             while (counter < 10000) {
@@ -255,6 +318,7 @@ static void MoodycamelQueue(benchmark::State& state) {
         state.SetItemsProcessed(state.iterations() * 10000);
         state.SetBytesProcessed(state.iterations() * 10000 * sizeof(typename type::value_type));
     } else {
+        ASSIGN_THREAD_AFFINITY(Thread2Affinity);
         for (auto _ : state) {
             int counter = 0;
             while (counter < 10000) {
@@ -376,8 +440,9 @@ template<>
 struct DummyContainer<56> {
     char dummy[56];
     DummyContainer() {
-        _mm256_storeu_ps((float*)dummy, _mm256_setzero_ps());
-        _mm_storeu_ps((float*)(dummy + 32), _mm_setzero_ps());
+        __m256 a = _mm256_setzero_ps();
+        _mm256_storeu_ps((float*)dummy, a);
+        _mm_storeu_ps((float*)(dummy + 32), _mm256_castps256_ps128(a));
         *((uint64_t*)(dummy + 48)) = 0;
     }
 };
@@ -386,8 +451,9 @@ template<>
 struct DummyContainer<48> {
     char dummy[48];
     DummyContainer() {
-        _mm256_storeu_ps((float*)dummy, _mm256_setzero_ps());
-        _mm_storeu_ps((float*)(dummy + 32), _mm_setzero_ps());
+        __m256 a = _mm256_setzero_ps();
+        _mm256_storeu_ps((float*)dummy, a);
+        _mm_storeu_ps((float*)(dummy + 32), _mm256_castps256_ps128(a));
     }
 };
 
@@ -726,7 +792,148 @@ BENCHMARK_TEMPLATE(Queue, spsc_queue_cached<DummyContainer<64>, 21>)->Apply(conf
 BENCHMARK_TEMPLATE(Queue, spsc_queue_cached<DummyContainer<64>, 22>)->Apply(configure_queue);
 BENCHMARK_TEMPLATE(Queue, spsc_queue_cached<DummyContainer<64>, 23>)->Apply(configure_queue);
 BENCHMARK_TEMPLATE(Queue, spsc_queue_cached<DummyContainer<64>, 24>)->Apply(configure_queue);
+#endif
 
+//
+//
+//
+
+#if 1
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<8>, size_t(1) << 12>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<8>, size_t(1) << 13>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<8>, size_t(1) << 14>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<8>, size_t(1) << 15>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<8>, size_t(1) << 16>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<8>, size_t(1) << 17>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<8>, size_t(1) << 18>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<8>, size_t(1) << 19>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<8>, size_t(1) << 20>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<8>, size_t(1) << 21>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<8>, size_t(1) << 22>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<8>, size_t(1) << 23>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<8>, size_t(1) << 24>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<8>, size_t(1) << 25>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<8>, size_t(1) << 26>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<8>, size_t(1) << 27>)->Apply(configure_queue);
+
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<16>, size_t(1) << 11>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<16>, size_t(1) << 12>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<16>, size_t(1) << 13>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<16>, size_t(1) << 14>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<16>, size_t(1) << 15>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<16>, size_t(1) << 16>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<16>, size_t(1) << 17>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<16>, size_t(1) << 18>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<16>, size_t(1) << 19>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<16>, size_t(1) << 20>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<16>, size_t(1) << 21>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<16>, size_t(1) << 22>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<16>, size_t(1) << 23>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<16>, size_t(1) << 24>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<16>, size_t(1) << 25>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<16>, size_t(1) << 26>)->Apply(configure_queue);
+
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<24>, size_t(1) << 11>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<24>, size_t(1) << 12>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<24>, size_t(1) << 13>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<24>, size_t(1) << 14>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<24>, size_t(1) << 15>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<24>, size_t(1) << 16>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<24>, size_t(1) << 17>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<24>, size_t(1) << 18>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<24>, size_t(1) << 19>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<24>, size_t(1) << 20>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<24>, size_t(1) << 21>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<24>, size_t(1) << 22>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<24>, size_t(1) << 23>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<24>, size_t(1) << 24>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<24>, size_t(1) << 25>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<24>, size_t(1) << 26>)->Apply(configure_queue);
+
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<32>, size_t(1) << 10>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<32>, size_t(1) << 11>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<32>, size_t(1) << 12>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<32>, size_t(1) << 13>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<32>, size_t(1) << 14>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<32>, size_t(1) << 15>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<32>, size_t(1) << 16>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<32>, size_t(1) << 17>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<32>, size_t(1) << 18>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<32>, size_t(1) << 19>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<32>, size_t(1) << 20>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<32>, size_t(1) << 21>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<32>, size_t(1) << 22>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<32>, size_t(1) << 23>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<32>, size_t(1) << 24>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<32>, size_t(1) << 25>)->Apply(configure_queue);
+
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<40>, size_t(1) << 10>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<40>, size_t(1) << 11>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<40>, size_t(1) << 12>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<40>, size_t(1) << 13>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<40>, size_t(1) << 14>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<40>, size_t(1) << 15>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<40>, size_t(1) << 16>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<40>, size_t(1) << 17>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<40>, size_t(1) << 18>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<40>, size_t(1) << 19>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<40>, size_t(1) << 20>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<40>, size_t(1) << 21>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<40>, size_t(1) << 22>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<40>, size_t(1) << 23>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<40>, size_t(1) << 24>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<40>, size_t(1) << 25>)->Apply(configure_queue);
+
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<48>, size_t(1) << 10>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<48>, size_t(1) << 11>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<48>, size_t(1) << 12>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<48>, size_t(1) << 13>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<48>, size_t(1) << 14>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<48>, size_t(1) << 15>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<48>, size_t(1) << 16>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<48>, size_t(1) << 17>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<48>, size_t(1) << 18>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<48>, size_t(1) << 19>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<48>, size_t(1) << 20>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<48>, size_t(1) << 21>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<48>, size_t(1) << 22>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<48>, size_t(1) << 23>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<48>, size_t(1) << 24>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<48>, size_t(1) << 25>)->Apply(configure_queue);
+
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<56>, size_t(1) << 10>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<56>, size_t(1) << 11>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<56>, size_t(1) << 12>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<56>, size_t(1) << 13>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<56>, size_t(1) << 14>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<56>, size_t(1) << 15>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<56>, size_t(1) << 16>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<56>, size_t(1) << 17>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<56>, size_t(1) << 18>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<56>, size_t(1) << 19>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<56>, size_t(1) << 20>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<56>, size_t(1) << 21>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<56>, size_t(1) << 22>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<56>, size_t(1) << 23>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<56>, size_t(1) << 24>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<56>, size_t(1) << 25>)->Apply(configure_queue);
+
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<64>, size_t(1) << 9>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<64>, size_t(1) << 10>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<64>, size_t(1) << 11>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<64>, size_t(1) << 12>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<64>, size_t(1) << 13>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<64>, size_t(1) << 14>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<64>, size_t(1) << 15>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<64>, size_t(1) << 16>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<64>, size_t(1) << 17>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<64>, size_t(1) << 18>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<64>, size_t(1) << 19>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<64>, size_t(1) << 20>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<64>, size_t(1) << 21>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<64>, size_t(1) << 22>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<64>, size_t(1) << 23>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<64>, size_t(1) << 24>)->Apply(configure_queue);
 #endif
 
 //
@@ -869,6 +1076,148 @@ BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked<DummyContainer<64>, size_t(1) << 21
 BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked<DummyContainer<64>, size_t(1) << 22>)->Apply(configure_queue);
 BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked<DummyContainer<64>, size_t(1) << 23>)->Apply(configure_queue);
 BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked<DummyContainer<64>, size_t(1) << 24>)->Apply(configure_queue);
+#endif
+
+//
+//
+//
+
+#if 1
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<8>, size_t(1) << 12>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<8>, size_t(1) << 13>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<8>, size_t(1) << 14>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<8>, size_t(1) << 15>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<8>, size_t(1) << 16>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<8>, size_t(1) << 17>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<8>, size_t(1) << 18>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<8>, size_t(1) << 19>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<8>, size_t(1) << 20>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<8>, size_t(1) << 21>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<8>, size_t(1) << 22>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<8>, size_t(1) << 23>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<8>, size_t(1) << 24>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<8>, size_t(1) << 25>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<8>, size_t(1) << 26>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<8>, size_t(1) << 27>)->Apply(configure_queue);
+
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<16>, size_t(1) << 11>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<16>, size_t(1) << 12>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<16>, size_t(1) << 13>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<16>, size_t(1) << 14>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<16>, size_t(1) << 15>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<16>, size_t(1) << 16>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<16>, size_t(1) << 17>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<16>, size_t(1) << 18>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<16>, size_t(1) << 19>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<16>, size_t(1) << 20>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<16>, size_t(1) << 21>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<16>, size_t(1) << 22>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<16>, size_t(1) << 23>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<16>, size_t(1) << 24>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<16>, size_t(1) << 25>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<16>, size_t(1) << 26>)->Apply(configure_queue);
+
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<24>, size_t(1) << 11>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<24>, size_t(1) << 12>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<24>, size_t(1) << 13>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<24>, size_t(1) << 14>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<24>, size_t(1) << 15>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<24>, size_t(1) << 16>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<24>, size_t(1) << 17>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<24>, size_t(1) << 18>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<24>, size_t(1) << 19>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<24>, size_t(1) << 20>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<24>, size_t(1) << 21>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<24>, size_t(1) << 22>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<24>, size_t(1) << 23>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<24>, size_t(1) << 24>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<24>, size_t(1) << 25>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<24>, size_t(1) << 26>)->Apply(configure_queue);
+
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<32>, size_t(1) << 10>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<32>, size_t(1) << 11>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<32>, size_t(1) << 12>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<32>, size_t(1) << 13>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<32>, size_t(1) << 14>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<32>, size_t(1) << 15>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<32>, size_t(1) << 16>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<32>, size_t(1) << 17>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<32>, size_t(1) << 18>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<32>, size_t(1) << 19>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<32>, size_t(1) << 20>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<32>, size_t(1) << 21>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<32>, size_t(1) << 22>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<32>, size_t(1) << 23>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<32>, size_t(1) << 24>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<32>, size_t(1) << 25>)->Apply(configure_queue);
+
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<40>, size_t(1) << 10>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<40>, size_t(1) << 11>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<40>, size_t(1) << 12>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<40>, size_t(1) << 13>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<40>, size_t(1) << 14>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<40>, size_t(1) << 15>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<40>, size_t(1) << 16>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<40>, size_t(1) << 17>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<40>, size_t(1) << 18>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<40>, size_t(1) << 19>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<40>, size_t(1) << 20>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<40>, size_t(1) << 21>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<40>, size_t(1) << 22>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<40>, size_t(1) << 23>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<40>, size_t(1) << 24>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<40>, size_t(1) << 25>)->Apply(configure_queue);
+
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<48>, size_t(1) << 10>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<48>, size_t(1) << 11>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<48>, size_t(1) << 12>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<48>, size_t(1) << 13>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<48>, size_t(1) << 14>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<48>, size_t(1) << 15>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<48>, size_t(1) << 16>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<48>, size_t(1) << 17>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<48>, size_t(1) << 18>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<48>, size_t(1) << 19>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<48>, size_t(1) << 20>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<48>, size_t(1) << 21>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<48>, size_t(1) << 22>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<48>, size_t(1) << 23>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<48>, size_t(1) << 24>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<48>, size_t(1) << 25>)->Apply(configure_queue);
+
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<56>, size_t(1) << 10>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<56>, size_t(1) << 11>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<56>, size_t(1) << 12>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<56>, size_t(1) << 13>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<56>, size_t(1) << 14>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<56>, size_t(1) << 15>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<56>, size_t(1) << 16>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<56>, size_t(1) << 17>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<56>, size_t(1) << 18>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<56>, size_t(1) << 19>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<56>, size_t(1) << 20>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<56>, size_t(1) << 21>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<56>, size_t(1) << 22>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<56>, size_t(1) << 23>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<56>, size_t(1) << 24>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<56>, size_t(1) << 25>)->Apply(configure_queue);
+
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<64>, size_t(1) << 9>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<64>, size_t(1) << 10>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<64>, size_t(1) << 11>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<64>, size_t(1) << 12>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<64>, size_t(1) << 13>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<64>, size_t(1) << 14>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<64>, size_t(1) << 15>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<64>, size_t(1) << 16>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<64>, size_t(1) << 17>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<64>, size_t(1) << 18>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<64>, size_t(1) << 19>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<64>, size_t(1) << 20>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<64>, size_t(1) << 21>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<64>, size_t(1) << 22>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<64>, size_t(1) << 23>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<64>, size_t(1) << 24>)->Apply(configure_queue);
 #endif
 
 BENCHMARK_TEMPLATE(RigtorpQueue, rigtorp::SPSCQueue<DummyContainer<8>>)->Apply(configure_folly_queue);
