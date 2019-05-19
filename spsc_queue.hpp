@@ -177,7 +177,7 @@ struct alignas((size_t) 1 << _align_log2) spsc_queue {
     }
 
 private:
-    alignas(align) std::byte _buffer[size * sizeof(_element_type)]{};
+    alignas(align) std::byte _buffer[size * sizeof(_element_type)];
 
     alignas(align) std::atomic<size_t> _produce_pos = 0;
     mutable size_t _consume_pos_cache = 0;
@@ -362,7 +362,7 @@ struct alignas((size_t) 1 << _align_log2) spsc_queue_cached {
     }
 
 private:
-    alignas(align) std::byte _buffer[size * sizeof(value_type)]{};
+    alignas(align) std::byte _buffer[size * sizeof(value_type)];
 
     alignas(align) std::atomic<size_t> _produce_pos = 0;
     mutable size_t _consume_pos_cache = 0;
@@ -380,7 +380,7 @@ struct alignas((size_t)1 << _align_log2) spsc_queue_chunked {
     static const auto align = size_t(1) << _align_log2;
     static const auto chunk_size = size_t(1) << (_l1d_size_log2 - ctu::log2_v<ctu::round_up_bits(sizeof(value_type), ctu::log2_v<sizeof(value_type)>)>);
     static const auto chunk_mask = chunk_size - 1;
-    static const auto chunk_count = ((size / chunk_size) + 1);
+    static const auto chunk_count = ((size + chunk_mask) / chunk_size);
 
     spsc_queue_chunked() :
         _chunks{},
@@ -503,7 +503,7 @@ struct alignas((size_t)1 << _align_log2) spsc_queue_chunked {
             return consume_pos == produce_pos;
         }
 
-        std::byte _buffer[chunk_size * sizeof(value_type)]{};
+        std::byte _buffer[chunk_size * sizeof(value_type)];
 
         alignas(align) std::atomic<size_t> _produce_pos = 0;
         mutable size_t _consume_pos_cache = 0;
@@ -538,12 +538,8 @@ struct alignas((size_t)1 << _align_log2) spsc_queue_chunked {
                 }
 
                 produce_pos = head->_produce_pos.load(std::memory_order_relaxed);
+                head->_consume_pos_cache = head->_consume_pos.load(std::memory_order_acquire);
                 next_index = (produce_pos + 1) & chunk_mask;
-
-                consume_pos = head->_consume_pos_cache = head->_consume_pos.load(std::memory_order_acquire);
-                if (produce_pos == consume_pos) {
-                    return false;
-                }
 
                 new(head->_buffer + (produce_pos * sizeof(value_type))) value_type(std::forward<Args>(args)...);
                 head->_produce_pos.store(next_index, std::memory_order_release);
@@ -566,9 +562,9 @@ struct alignas((size_t)1 << _align_log2) spsc_queue_chunked {
         auto produce_pos = tail->_produce_pos_cache;
 
         if (produce_pos == consume_pos) {
+            auto head = _head.load(std::memory_order_acquire);
             produce_pos = tail->_produce_pos_cache = tail->_produce_pos.load(std::memory_order_acquire);
             if (produce_pos == consume_pos) {
-                auto head = _head.load(std::memory_order_acquire);
                 if (tail == head) {
                     return false;
                 }
@@ -691,7 +687,6 @@ struct alignas((size_t)1 << _align_log2) spsc_queue_cached_ptr {
     static const auto align = size_t(1) << _align_log2;
 
     spsc_queue_cached_ptr() :
-        _buffer{},
         _produce_pos((value_type*)_buffer),
         _consume_pos_cache((value_type*)_buffer),
         _consume_pos((value_type*)_buffer),
@@ -883,7 +878,7 @@ struct alignas((size_t)1 << _align_log2) spsc_queue_chunked_ptr {
     static const auto align = size_t(1) << _align_log2;
     static const auto chunk_size = size_t(1) << (_l1d_size_log2 - ctu::log2_v<ctu::round_up_bits(sizeof(value_type), ctu::log2_v<sizeof(value_type)>)>);
     static const auto chunk_mask = chunk_size - 1;
-    static const auto chunk_count = ((size / chunk_size) + 1);
+    static const auto chunk_count = ((size + chunk_mask) / chunk_size);
 
     spsc_queue_chunked_ptr() : 
         _chunks{},
@@ -923,7 +918,6 @@ struct alignas((size_t)1 << _align_log2) spsc_queue_chunked_ptr {
 
     struct alignas(align) chunk {
         chunk() :
-            _buffer{},
             _produce_pos((value_type*)_buffer),
             _consume_pos_cache((value_type*)_buffer),
             _consume_pos((value_type*)_buffer),
@@ -1007,7 +1001,7 @@ struct alignas((size_t)1 << _align_log2) spsc_queue_chunked_ptr {
             return consume_pos == produce_pos;
         }
 
-        std::byte _buffer[chunk_size * sizeof(value_type)]{};
+        std::byte _buffer[chunk_size * sizeof(value_type)];
 
         alignas(align) std::atomic<value_type*> _produce_pos = nullptr;
         mutable value_type* _consume_pos_cache = nullptr;
@@ -1045,14 +1039,10 @@ struct alignas((size_t)1 << _align_log2) spsc_queue_chunked_ptr {
                 }
 
                 produce_pos = head->_produce_pos.load(std::memory_order_relaxed);
+                head->_consume_pos_cache = head->_consume_pos.load(std::memory_order_acquire);
                 next_index = (produce_pos + 1);
                 if (next_index == (value_type*)head->_buffer + chunk_size) {
                     next_index = (value_type*)head->_buffer;
-                }
-
-                consume_pos = head->_consume_pos_cache = head->_consume_pos.load(std::memory_order_acquire);
-                if (produce_pos == consume_pos) {
-                    return false;
                 }
 
                 new(produce_pos) value_type(std::forward<Args>(args)...);
@@ -1076,9 +1066,9 @@ struct alignas((size_t)1 << _align_log2) spsc_queue_chunked_ptr {
         auto produce_pos = tail->_produce_pos_cache;
 
         if (produce_pos == consume_pos) {
+            auto head = _head.load(std::memory_order_acquire);
             produce_pos = tail->_produce_pos_cache = tail->_produce_pos.load(std::memory_order_acquire);
             if (produce_pos == consume_pos) {
-                auto head = _head.load(std::memory_order_acquire);
                 if (tail == head) {
                     return false;
                 }
