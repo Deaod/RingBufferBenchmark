@@ -1029,7 +1029,7 @@ struct alignas((size_t)1 << _align_log2) spsc_queue_chunked_ptr {
 
         auto produce_pos = head->_produce_pos.load(std::memory_order_relaxed);
         auto next_index = (produce_pos + 1);
-        if ((void*)next_index == (void*)(head->_buffer + chunk_size * sizeof(value_type))) {
+        if (next_index == (value_type*)head->_buffer + chunk_size) {
             next_index = (value_type*)head->_buffer;
         }
 
@@ -1046,7 +1046,7 @@ struct alignas((size_t)1 << _align_log2) spsc_queue_chunked_ptr {
 
                 produce_pos = head->_produce_pos.load(std::memory_order_relaxed);
                 next_index = (produce_pos + 1);
-                if (next_index == (value_type*)tail->_buffer + chunk_size) {
+                if (next_index == (value_type*)head->_buffer + chunk_size) {
                     next_index = (value_type*)head->_buffer;
                 }
 
