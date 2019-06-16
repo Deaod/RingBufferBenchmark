@@ -875,17 +875,23 @@ private:
     mutable value_type* _produce_pos_cache = nullptr;
 };
 
-template<typename _element_type, size_t _queue_size, int _l1d_size_bytes = 1 << 15, int _align_log2 = 7>
+template<
+    typename _element_type,
+    size_t _queue_size,
+    size_t _chunk_size_bytes = (1 << 15), // should not exceed L1D size of target arch
+    int _align_log2 = 7>
 struct alignas((size_t)1 << _align_log2) spsc_queue_chunked_ptr {
     using value_type = _element_type;
 
     static const auto size = _queue_size;
     static const auto align = size_t(1) << _align_log2;
+    static const auto chunk_size_bytes = _chunk_size_bytes - (3 * align); // correct for chunk overhead, which is 3 cache lines
     
-    static_assert(sizeof(value_type) <= _l1d_size_bytes, "Elements must not be larger than L1D size.");
+    static_assert(_chunk_size_bytes > 4 * align, "Chunk size too small");
+    static_assert(sizeof(value_type) <= chunk_size_bytes, "Elements must not be larger than effective chunk size");
     static_assert(alignof(value_type) <= align, "Elements must not have stronger alignment requirements than this queue");
 
-    static const auto chunk_max_size = _l1d_size_bytes / sizeof(value_type);
+    static const auto chunk_max_size = chunk_size_bytes / sizeof(value_type);
     static const auto chunk_count = ((size + chunk_max_size - 1) / chunk_max_size);
     static const auto chunk_size = (size / chunk_count) + (((size % chunk_count) == 0) ? 0 : 1);
 
