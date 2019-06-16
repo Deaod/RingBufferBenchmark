@@ -6,6 +6,8 @@
 #include <cstring>
 #include <type_traits>
 #include <utility>
+#include "scope_guard.hpp"
+#include "compile_time_utilities.hpp"
 
 template<typename _element_type, int _queue_size_log2, int _align_log2 = 7>
 struct alignas((size_t) 1 << _align_log2) spsc_queue {
@@ -873,7 +875,7 @@ private:
     mutable value_type* _produce_pos_cache = nullptr;
 };
 
-template<typename _element_type, int _queue_size, int _l1d_size_log2 = 15, int _align_log2 = 7>
+template<typename _element_type, size_t _queue_size, int _l1d_size_log2 = 15, int _align_log2 = 7>
 struct alignas((size_t)1 << _align_log2) spsc_queue_chunked_ptr {
     using value_type = _element_type;
     static_assert(sizeof(value_type) <= (size_t(1) << _l1d_size_log2), "Elements must not be larger than L1D size.");
