@@ -2,8 +2,11 @@
 #include "spsc_queue.hpp"
 #include "spsc_ring_buffer.hpp"
 #include "spsc_ring_buffer_cached.hpp"
+#include "spsc_ring_buffer_chunked.hpp"
 #include "spsc_ring_buffer_heap.hpp"
-#include "follyProducerConsumerQueue.h"
+#include <folly/ProducerConsumerQueue.h>
+#include <folly/concurrency/UnboundedQueue.h>
+#include <folly/concurrency/DynamicBoundedQueue.h>
 #include "rigtorpSPSCQueue.h"
 #include "moodycamel/readwriterqueue.h"
 #include <immintrin.h>
@@ -113,6 +116,8 @@ static void RingBuffer(benchmark::State& state) {
                 counter += int(result);
             }
         }
+        state.SetItemsProcessed(state.iterations() * 10000);
+        state.SetBytesProcessed(state.iterations() * 10000 * state.range(0));
 
         if (b.is_empty() == false) {
             state.SkipWithError("Not Empty after test");
@@ -157,8 +162,99 @@ static void FollyQueue(benchmark::State& state) {
                 }
             }
         }
+        state.SetItemsProcessed(state.iterations() * 10000);
+        state.SetBytesProcessed(state.iterations() * 10000 * sizeof(typename type::value_type));
 
         if (q.isEmpty() == false) {
+            state.SkipWithError("Not Empty after test");
+        }
+
+        delete queue;
+        queue = nullptr;
+    }
+}
+
+template<typename type, typename element_type>
+static void FollyUnboundedQueue(benchmark::State& state) {
+    static std::atomic<type*> queue = nullptr;
+
+    if (state.thread_index == 0) {
+        queue = new type{};
+    } else {
+        while (queue.load(std::memory_order_relaxed) == nullptr) {}
+    }
+
+    type& q = *queue;
+    if (state.thread_index == 0) {
+        ASSIGN_THREAD_AFFINITY(Thread1Affinity);
+        for (auto _ : state) {
+            int counter = 0;
+            while (counter < 10000) {
+                q.enqueue(element_type{});
+                counter += 1;
+            }
+        }
+        state.SetItemsProcessed(state.iterations() * 10000);
+        state.SetBytesProcessed(state.iterations() * 10000 * sizeof(element_type));
+    } else {
+        ASSIGN_THREAD_AFFINITY(Thread2Affinity);
+        element_type e;
+        for (auto _ : state) {
+            int counter = 0;
+            while (counter < 10000) {
+                if (q.try_dequeue().has_value()) {
+                    counter += 1;
+                }
+            }
+        }
+        state.SetItemsProcessed(state.iterations() * 10000);
+        state.SetBytesProcessed(state.iterations() * 10000 * sizeof(element_type));
+
+        if (q.empty() == false) {
+            state.SkipWithError("Not Empty after test");
+        }
+
+        delete queue;
+        queue = nullptr;
+    }
+}
+
+template<typename type, typename element_type>
+static void FollyDBQueue(benchmark::State& state) {
+    static std::atomic<type*> queue = nullptr;
+
+    if (state.thread_index == 0) {
+        queue = new type{ size_t(1) << (state.range(0) - ctu::log2_v<sizeof(element_type)>) };
+    } else {
+        while (queue.load(std::memory_order_relaxed) == nullptr) {}
+    }
+
+    type& q = *queue;
+    if (state.thread_index == 0) {
+        ASSIGN_THREAD_AFFINITY(Thread1Affinity);
+        for (auto _ : state) {
+            int counter = 0;
+            while (counter < 10000) {
+                counter += int(q.try_enqueue(element_type{}));
+            }
+        }
+        state.SetItemsProcessed(state.iterations() * 10000);
+        state.SetBytesProcessed(state.iterations() * 10000 * sizeof(element_type));
+    } else {
+        ASSIGN_THREAD_AFFINITY(Thread2Affinity);
+        element_type e;
+        for (auto _ : state) {
+            int counter = 0;
+            while (counter < 10000) {
+                if (q.try_dequeue(e)) {
+                    counter += 1;
+                }
+            }
+        }
+        state.SetItemsProcessed(state.iterations() * 10000);
+        state.SetBytesProcessed(state.iterations() * 10000 * sizeof(element_type));
+
+        if (q.empty() == false) {
             state.SkipWithError("Not Empty after test");
         }
 
@@ -197,6 +293,8 @@ static void Queue(benchmark::State& state) {
                 counter += int(q.consume([](typename type::value_type*){ return true; }));
             }
         }
+        state.SetItemsProcessed(state.iterations() * 10000);
+        state.SetBytesProcessed(state.iterations() * 10000 * sizeof(typename type::value_type));
 
         if (q.is_empty() == false) {
             state.SkipWithError("Not Empty after test");
@@ -241,6 +339,8 @@ static void QueueMultiple(benchmark::State& state) {
                 counter += q.consume_all([](typename type::value_type * val) { return true; });
             }
         }
+        state.SetItemsProcessed(state.iterations() * 10000);
+        state.SetBytesProcessed(state.iterations() * 10000 * sizeof(typename type::value_type));
 
         if (q.is_empty() == false) {
             state.SkipWithError("Not Empty after test");
@@ -285,6 +385,8 @@ static void RigtorpQueue(benchmark::State& state) {
                 }
             }
         }
+        state.SetItemsProcessed(state.iterations() * 10000);
+        state.SetBytesProcessed(state.iterations() * 10000 * sizeof(typename type::value_type));
 
         if (q.empty() == false) {
             state.SkipWithError("Not Empty after test");
@@ -329,6 +431,8 @@ static void MoodycamelQueue(benchmark::State& state) {
                 }
             }
         }
+        state.SetItemsProcessed(state.iterations() * 10000);
+        state.SetBytesProcessed(state.iterations() * 10000 * sizeof(typename type::value_type));
 
         if (q.size_approx() != 0) {
             state.SkipWithError("Not Empty after test");
@@ -407,6 +511,23 @@ BENCHMARK_TEMPLATE(RingBuffer, spsc_ring_buffer_cached_masked<28>)->Apply(config
 BENCHMARK_TEMPLATE(RingBuffer, spsc_ring_buffer_cached_masked<29>)->Apply(configure_benchmark);
 BENCHMARK_TEMPLATE(RingBuffer, spsc_ring_buffer_cached_masked<30>)->Apply(configure_benchmark);
 
+BENCHMARK_TEMPLATE(RingBuffer, spsc_ring_buffer_chunked<15>)->Apply(configure_benchmark);
+BENCHMARK_TEMPLATE(RingBuffer, spsc_ring_buffer_chunked<16>)->Apply(configure_benchmark);
+BENCHMARK_TEMPLATE(RingBuffer, spsc_ring_buffer_chunked<17>)->Apply(configure_benchmark);
+BENCHMARK_TEMPLATE(RingBuffer, spsc_ring_buffer_chunked<18>)->Apply(configure_benchmark);
+BENCHMARK_TEMPLATE(RingBuffer, spsc_ring_buffer_chunked<19>)->Apply(configure_benchmark);
+BENCHMARK_TEMPLATE(RingBuffer, spsc_ring_buffer_chunked<20>)->Apply(configure_benchmark);
+BENCHMARK_TEMPLATE(RingBuffer, spsc_ring_buffer_chunked<21>)->Apply(configure_benchmark);
+BENCHMARK_TEMPLATE(RingBuffer, spsc_ring_buffer_chunked<22>)->Apply(configure_benchmark);
+BENCHMARK_TEMPLATE(RingBuffer, spsc_ring_buffer_chunked<23>)->Apply(configure_benchmark);
+BENCHMARK_TEMPLATE(RingBuffer, spsc_ring_buffer_chunked<24>)->Apply(configure_benchmark);
+BENCHMARK_TEMPLATE(RingBuffer, spsc_ring_buffer_chunked<25>)->Apply(configure_benchmark);
+BENCHMARK_TEMPLATE(RingBuffer, spsc_ring_buffer_chunked<26>)->Apply(configure_benchmark);
+BENCHMARK_TEMPLATE(RingBuffer, spsc_ring_buffer_chunked<27>)->Apply(configure_benchmark);
+BENCHMARK_TEMPLATE(RingBuffer, spsc_ring_buffer_chunked<28>)->Apply(configure_benchmark);
+BENCHMARK_TEMPLATE(RingBuffer, spsc_ring_buffer_chunked<29>)->Apply(configure_benchmark);
+BENCHMARK_TEMPLATE(RingBuffer, spsc_ring_buffer_chunked<30>)->Apply(configure_benchmark);
+
 BENCHMARK_TEMPLATE(RingBuffer, spsc_ring_buffer_heap<15>)->Apply(configure_benchmark);
 BENCHMARK_TEMPLATE(RingBuffer, spsc_ring_buffer_heap<16>)->Apply(configure_benchmark);
 BENCHMARK_TEMPLATE(RingBuffer, spsc_ring_buffer_heap<17>)->Apply(configure_benchmark);
@@ -442,8 +563,7 @@ struct DummyContainer<56> {
     DummyContainer() {
         __m256 a = _mm256_setzero_ps();
         _mm256_storeu_ps((float*)dummy, a);
-        _mm_storeu_ps((float*)(dummy + 32), _mm256_castps256_ps128(a));
-        *((uint64_t*)(dummy + 48)) = 0;
+        _mm256_storeu_ps((float*)(dummy + 24), a);
     }
 };
 
@@ -505,14 +625,23 @@ BENCHMARK_TEMPLATE(FollyQueue, folly::ProducerConsumerQueue<DummyContainer<48>>)
 BENCHMARK_TEMPLATE(FollyQueue, folly::ProducerConsumerQueue<DummyContainer<56>>)->Apply(configure_folly_queue);
 BENCHMARK_TEMPLATE(FollyQueue, folly::ProducerConsumerQueue<DummyContainer<64>>)->Apply(configure_folly_queue);
 
-BENCHMARK_TEMPLATE(FollyQueue, folly::ProducerConsumerQueueCached<DummyContainer<8>>)->Apply(configure_folly_queue);
-BENCHMARK_TEMPLATE(FollyQueue, folly::ProducerConsumerQueueCached<DummyContainer<16>>)->Apply(configure_folly_queue);
-BENCHMARK_TEMPLATE(FollyQueue, folly::ProducerConsumerQueueCached<DummyContainer<24>>)->Apply(configure_folly_queue);
-BENCHMARK_TEMPLATE(FollyQueue, folly::ProducerConsumerQueueCached<DummyContainer<32>>)->Apply(configure_folly_queue);
-BENCHMARK_TEMPLATE(FollyQueue, folly::ProducerConsumerQueueCached<DummyContainer<40>>)->Apply(configure_folly_queue);
-BENCHMARK_TEMPLATE(FollyQueue, folly::ProducerConsumerQueueCached<DummyContainer<48>>)->Apply(configure_folly_queue);
-BENCHMARK_TEMPLATE(FollyQueue, folly::ProducerConsumerQueueCached<DummyContainer<56>>)->Apply(configure_folly_queue);
-BENCHMARK_TEMPLATE(FollyQueue, folly::ProducerConsumerQueueCached<DummyContainer<64>>)->Apply(configure_folly_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<8>, false, 12>, DummyContainer<8>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<16>, false, 11>, DummyContainer<16>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<24>, false, 10>, DummyContainer<24>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<32>, false, 10>, DummyContainer<32>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<40>, false, 9>, DummyContainer<40>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<48>, false, 9>, DummyContainer<48>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<56>, false, 9>, DummyContainer<56>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<64>, false, 9>, DummyContainer<64>)->Apply(configure_queue);
+
+BENCHMARK_TEMPLATE(FollyDBQueue, folly::DSPSCQueue<DummyContainer<8>, false, 12>, DummyContainer<8>)->Apply(configure_folly_queue);
+BENCHMARK_TEMPLATE(FollyDBQueue, folly::DSPSCQueue<DummyContainer<16>, false, 11>, DummyContainer<16>)->Apply(configure_folly_queue);
+BENCHMARK_TEMPLATE(FollyDBQueue, folly::DSPSCQueue<DummyContainer<24>, false, 10>, DummyContainer<24>)->Apply(configure_folly_queue);
+BENCHMARK_TEMPLATE(FollyDBQueue, folly::DSPSCQueue<DummyContainer<32>, false, 10>, DummyContainer<32>)->Apply(configure_folly_queue);
+BENCHMARK_TEMPLATE(FollyDBQueue, folly::DSPSCQueue<DummyContainer<40>, false, 9>, DummyContainer<40>)->Apply(configure_folly_queue);
+BENCHMARK_TEMPLATE(FollyDBQueue, folly::DSPSCQueue<DummyContainer<48>, false, 9>, DummyContainer<48>)->Apply(configure_folly_queue);
+BENCHMARK_TEMPLATE(FollyDBQueue, folly::DSPSCQueue<DummyContainer<56>, false, 9>, DummyContainer<56>)->Apply(configure_folly_queue);
+BENCHMARK_TEMPLATE(FollyDBQueue, folly::DSPSCQueue<DummyContainer<64>, false, 9>, DummyContainer<64>)->Apply(configure_folly_queue);
 
 #if 1
 BENCHMARK_TEMPLATE(Queue, spsc_queue<DummyContainer<8>, 12>)->Apply(configure_queue);

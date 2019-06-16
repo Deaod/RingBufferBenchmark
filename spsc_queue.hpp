@@ -6,6 +6,8 @@
 #include <cstring>
 #include <type_traits>
 #include <utility>
+#include "scope_guard.hpp"
+#include "compile_time_utilities.hpp"
 
 template<typename _element_type, int _queue_size_log2, int _align_log2 = 7>
 struct alignas((size_t) 1 << _align_log2) spsc_queue {
@@ -538,8 +540,10 @@ struct alignas((size_t)1 << _align_log2) spsc_queue_chunked {
                 }
 
                 produce_pos = head->_produce_pos.load(std::memory_order_relaxed);
-                head->_consume_pos_cache = head->_consume_pos.load(std::memory_order_acquire);
                 next_index = (produce_pos + 1) & chunk_mask;
+
+                // this next line is exactly where it needs to be, unless you like deadlocks.
+                head->_consume_pos_cache = head->_consume_pos.load(std::memory_order_acquire);
 
                 new(head->_buffer + (produce_pos * sizeof(value_type))) value_type(std::forward<Args>(args)...);
                 head->_produce_pos.store(next_index, std::memory_order_release);
@@ -562,7 +566,9 @@ struct alignas((size_t)1 << _align_log2) spsc_queue_chunked {
         auto produce_pos = tail->_produce_pos_cache;
 
         if (produce_pos == consume_pos) {
+            // this next line is exactly where it needs to be, unless you like deadlocks.
             auto head = _head.load(std::memory_order_acquire);
+
             produce_pos = tail->_produce_pos_cache = tail->_produce_pos.load(std::memory_order_acquire);
             if (produce_pos == consume_pos) {
                 if (tail == head) {
@@ -869,7 +875,7 @@ private:
     mutable value_type* _produce_pos_cache = nullptr;
 };
 
-template<typename _element_type, int _queue_size, int _l1d_size_bytes = 1 << 15, int _align_log2 = 7>
+template<typename _element_type, size_t _queue_size, int _l1d_size_bytes = 1 << 15, int _align_log2 = 7>
 struct alignas((size_t)1 << _align_log2) spsc_queue_chunked_ptr {
     using value_type = _element_type;
 
@@ -1042,11 +1048,13 @@ struct alignas((size_t)1 << _align_log2) spsc_queue_chunked_ptr {
                 }
 
                 produce_pos = head->_produce_pos.load(std::memory_order_relaxed);
-                head->_consume_pos_cache = head->_consume_pos.load(std::memory_order_acquire);
                 next_index = (produce_pos + 1);
                 if (next_index == (value_type*)head->_buffer + chunk_size) {
                     next_index = (value_type*)head->_buffer;
                 }
+
+                // this next line is exactly where it needs to be, unless you like deadlocks.
+                head->_consume_pos_cache = head->_consume_pos.load(std::memory_order_acquire);
 
                 new(produce_pos) value_type(std::forward<Args>(args)...);
                 head->_produce_pos.store(next_index, std::memory_order_release);
