@@ -867,16 +867,25 @@ private:
     mutable value_type* _produce_pos_cache = nullptr;
 };
 
-template<typename _element_type, size_t _queue_size, int _l1d_size_log2 = 15, int _align_log2 = 7>
+template<
+    typename _element_type,
+    size_t _queue_size,
+    size_t _chunk_size_bytes = (1 << 15), // should not exceed L1D size of target arch
+    int _align_log2 = 7>
 struct alignas((size_t)1 << _align_log2) spsc_queue_chunked_ptr {
     using value_type = _element_type;
-    static_assert(sizeof(value_type) <= (size_t(1) << _l1d_size_log2), "Elements must not be larger than L1D size.");
 
     static const auto size = _queue_size;
     static const auto align = size_t(1) << _align_log2;
-    static const auto chunk_size = size_t(1) << (_l1d_size_log2 - ctu::log2_v<ctu::round_up_bits(sizeof(value_type), ctu::log2_v<sizeof(value_type)>)>);
-    static const auto chunk_mask = chunk_size - 1;
-    static const auto chunk_count = ((size + chunk_mask) / chunk_size);
+    static const auto chunk_size_bytes = _chunk_size_bytes - (3 * align); // correct for chunk overhead, which is 3 cache lines
+    
+    static_assert(_chunk_size_bytes > 4 * align, "Chunk size too small");
+    static_assert(sizeof(value_type) <= chunk_size_bytes, "Elements must not be larger than effective chunk size");
+    static_assert(alignof(value_type) <= align, "Elements must not have stronger alignment requirements than this queue");
+
+    static const auto chunk_max_size = chunk_size_bytes / sizeof(value_type);
+    static const auto chunk_count = ((size + chunk_max_size - 1) / chunk_max_size);
+    static const auto chunk_size = (size / chunk_count) + (((size % chunk_count) == 0) ? 0 : 1);
 
     spsc_queue_chunked_ptr() : 
         _chunks{},
@@ -891,8 +900,8 @@ struct alignas((size_t)1 << _align_log2) spsc_queue_chunked_ptr {
 
     spsc_queue_chunked_ptr(const spsc_queue_chunked_ptr& other) :
         _chunks(other._chunks),
-        _head(_chunks + (other._head - other._chunks)),
-        _tail(_chunks + (other._tail - other._chunks))
+        _head(_chunks + (other._head - other._chunks.data())),
+        _tail(_chunks + (other._tail - other._chunks.data()))
     {
         for (size_t i = 0; i < chunk_count - 1; i += 1) {
             _chunks[i]._next = &_chunks[i + 1];
@@ -908,8 +917,8 @@ struct alignas((size_t)1 << _align_log2) spsc_queue_chunked_ptr {
         }
         _chunks[chunk_count - 1]._next = _chunks.data();
 
-        _head = &_chunks[other._head - other._chunks];
-        _tail = &_chunks[other._tail - other._chunks];
+        _head = &_chunks[other._head - other._chunks.data()];
+        _tail = &_chunks[other._tail - other._chunks.data()];
 
         return *this;
     }
@@ -1066,39 +1075,41 @@ struct alignas((size_t)1 << _align_log2) spsc_queue_chunked_ptr {
         auto produce_pos = tail->_produce_pos_cache;
 
         if (produce_pos == consume_pos) {
-            // this next line is exactly where it needs to be, unless you like deadlocks.
-            auto head = _head.load(std::memory_order_acquire);
-
-            produce_pos = tail->_produce_pos_cache = tail->_produce_pos.load(std::memory_order_acquire);
-            if (produce_pos == consume_pos) {
-                if (tail == head) {
-                    return false;
-                }
-
-                tail = tail->_next;
-
-                consume_pos = tail->_consume_pos.load(std::memory_order_relaxed);
+            //produce_pos = tail->_produce_pos_cache = tail->_produce_pos.load(std::memory_order_acquire);
+            //if (produce_pos == consume_pos) {
+                auto head = _head.load(std::memory_order_acquire);
+                
                 produce_pos = tail->_produce_pos_cache = tail->_produce_pos.load(std::memory_order_acquire);
-
                 if (produce_pos == consume_pos) {
-                    return false;
-                }
-
-                auto result = callback(consume_pos);
-                if (result) {
-                    consume_pos->~value_type();
-
-                    consume_pos = (consume_pos + 1);
-                    if (consume_pos == (value_type*)tail->_buffer + chunk_size) {
-                        consume_pos = (value_type*)tail->_buffer;
+                    if (tail == head) {
+                        return false;
                     }
-                    tail->_consume_pos.store(consume_pos, std::memory_order_release);
+
+                    tail = tail->_next;
+
+                    consume_pos = tail->_consume_pos.load(std::memory_order_relaxed);
+                    produce_pos = tail->_produce_pos_cache = tail->_produce_pos.load(std::memory_order_acquire);
+
+                    if (produce_pos == consume_pos) {
+                        return false;
+                    }
+
+                    auto result = callback(consume_pos);
+                    if (result) {
+                        consume_pos->~value_type();
+
+                        consume_pos = std::launder(consume_pos + 1);
+                        if (consume_pos == (value_type*)tail->_buffer + chunk_size) {
+                            consume_pos = (value_type*)tail->_buffer;
+                        }
+                        tail->_consume_pos.store(consume_pos, std::memory_order_release);
+                    }
+
+                    _tail.store(tail, std::memory_order_release);
+
+                    return result;
                 }
-
-                _tail.store(tail, std::memory_order_release);
-
-                return result;
-            }
+            //}
         }
 
         if (callback(consume_pos)) {
@@ -1139,7 +1150,9 @@ struct alignas((size_t)1 << _align_log2) spsc_queue_chunked_ptr {
 
             while (consume_pos != produce_pos) {
                 if (callback(consume_pos) == false) {
-                    return sum_consumed + ((consume_pos - old_consume_pos) & chunk_mask);
+                    ptrdiff_t tmp = (consume_pos - old_consume_pos);
+                    if (tmp < 0) tmp += chunk_size;
+                    return sum_consumed + tmp;
                 }
 
                 consume_pos->~value_type();
@@ -1150,7 +1163,9 @@ struct alignas((size_t)1 << _align_log2) spsc_queue_chunked_ptr {
                 }
             }
 
-            sum_consumed += (consume_pos - old_consume_pos) & chunk_mask;
+            ptrdiff_t tmp = (consume_pos - old_consume_pos);
+            if (tmp < 0) tmp += chunk_size;
+            sum_consumed += tmp;
             tail = tail->_next;
         }
 
@@ -1179,7 +1194,9 @@ struct alignas((size_t)1 << _align_log2) spsc_queue_chunked_ptr {
             }
         }
 
-        return sum_consumed + ((consume_pos - old_consume_pos) & chunk_mask);
+        ptrdiff_t tmp = (consume_pos - old_consume_pos);
+        if (tmp < 0) tmp += chunk_size;
+        return sum_consumed + tmp;
     }
 
     bool is_empty() const {

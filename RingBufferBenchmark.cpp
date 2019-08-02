@@ -1498,15 +1498,6 @@ BENCHMARK_TEMPLATE(RigtorpQueue, rigtorp::SPSCQueue<DummyContainer<48>>)->Apply(
 BENCHMARK_TEMPLATE(RigtorpQueue, rigtorp::SPSCQueue<DummyContainer<56>>)->Apply(configure_folly_queue);
 BENCHMARK_TEMPLATE(RigtorpQueue, rigtorp::SPSCQueue<DummyContainer<64>>)->Apply(configure_folly_queue);
 
-BENCHMARK_TEMPLATE(RigtorpQueue, rigtorp::SPSCQueueCached<DummyContainer<8>>)->Apply(configure_folly_queue);
-BENCHMARK_TEMPLATE(RigtorpQueue, rigtorp::SPSCQueueCached<DummyContainer<16>>)->Apply(configure_folly_queue);
-BENCHMARK_TEMPLATE(RigtorpQueue, rigtorp::SPSCQueueCached<DummyContainer<24>>)->Apply(configure_folly_queue);
-BENCHMARK_TEMPLATE(RigtorpQueue, rigtorp::SPSCQueueCached<DummyContainer<32>>)->Apply(configure_folly_queue);
-BENCHMARK_TEMPLATE(RigtorpQueue, rigtorp::SPSCQueueCached<DummyContainer<40>>)->Apply(configure_folly_queue);
-BENCHMARK_TEMPLATE(RigtorpQueue, rigtorp::SPSCQueueCached<DummyContainer<48>>)->Apply(configure_folly_queue);
-BENCHMARK_TEMPLATE(RigtorpQueue, rigtorp::SPSCQueueCached<DummyContainer<56>>)->Apply(configure_folly_queue);
-BENCHMARK_TEMPLATE(RigtorpQueue, rigtorp::SPSCQueueCached<DummyContainer<64>>)->Apply(configure_folly_queue);
-
 BENCHMARK_TEMPLATE(MoodycamelQueue, moodycamel::ReaderWriterQueue<DummyContainer<8>>)->Apply(configure_folly_queue);
 BENCHMARK_TEMPLATE(MoodycamelQueue, moodycamel::ReaderWriterQueue<DummyContainer<16>>)->Apply(configure_folly_queue);
 BENCHMARK_TEMPLATE(MoodycamelQueue, moodycamel::ReaderWriterQueue<DummyContainer<24>>)->Apply(configure_folly_queue);
