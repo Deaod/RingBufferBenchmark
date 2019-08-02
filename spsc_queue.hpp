@@ -20,9 +20,7 @@ struct alignas((size_t) 1 << _align_log2) spsc_queue {
 
     spsc_queue(const spsc_queue & other) :
         _produce_pos(other._produce_pos),
-        _consume_pos_cache(other._consume_pos_cache),
-        _consume_pos(other._consume_pos),
-        _produce_pos_cache(other._produce_pos_cache)
+        _consume_pos(other._consume_pos)
     {
         auto dst = (value_type*)_buffer + _consume_pos.load();
         auto end = (value_type*)_buffer + _produce_pos.load();
@@ -54,9 +52,7 @@ struct alignas((size_t) 1 << _align_log2) spsc_queue {
         }
 
         _produce_pos = other._produce_pos.load();
-        _consume_pos_cache = other._consume_pos_cache;
         _consume_pos = other._consume_pos.load();
-        _produce_pos_cache = other._produce_pos_cache;
 
         {
             auto dst = (value_type*)_buffer + _consume_pos.load();
@@ -142,7 +138,7 @@ struct alignas((size_t) 1 << _align_log2) spsc_queue {
     template<typename callable>
     ptrdiff_t consume_all(callable&& callback) noexcept(noexcept(callback(static_cast<value_type*>(nullptr)))) {
         auto consume_pos = _consume_pos.load(std::memory_order_acquire);
-        auto produce_pos = _produce_pos_cache = _produce_pos.load(std::memory_order_acquire);
+        auto produce_pos = _produce_pos.load(std::memory_order_acquire);
 
         if (produce_pos == consume_pos)
             return true;
@@ -180,12 +176,8 @@ struct alignas((size_t) 1 << _align_log2) spsc_queue {
 
 private:
     alignas(align) std::byte _buffer[size * sizeof(_element_type)];
-
     alignas(align) std::atomic<size_t> _produce_pos = 0;
-    mutable size_t _consume_pos_cache = 0;
-
     alignas(align) std::atomic<size_t> _consume_pos = 0;
-    mutable size_t _produce_pos_cache = 0;
 };
 
 template<typename _element_type, int _queue_size_log2, int _align_log2 = 7>
