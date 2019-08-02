@@ -1,5 +1,6 @@
 #include <benchmark/benchmark.h>
 #include "spsc_queue.hpp"
+#include "spsc_queue_release.hpp"
 #include "spsc_ring_buffer.hpp"
 #include "spsc_ring_buffer_cached.hpp"
 #include "spsc_ring_buffer_chunked.hpp"
@@ -7,6 +8,7 @@
 #include <folly/ProducerConsumerQueue.h>
 #include <folly/concurrency/UnboundedQueue.h>
 #include <folly/concurrency/DynamicBoundedQueue.h>
+#include <boost/lockfree/spsc_queue.hpp>
 #include "rigtorpSPSCQueue.h"
 #include "moodycamel/readwriterqueue.h"
 #include <immintrin.h>
@@ -22,23 +24,23 @@
 #endif
 
 constexpr uint64_t Thread1Affinity = 1 << 0;
-constexpr uint64_t Thread2Affinity = 1 << 2;
+constexpr uint64_t Thread2Affinity = 1 << 8;
 
 void configure_benchmark(benchmark::internal::Benchmark* bench) {
     bench->Threads(2);
     bench->Repetitions(200);
 
-    bench->ArgNames({"Elem Size"});
+    bench->ArgNames({ "Elem Size" });
 
-    bench->Args({   8 });
-    bench->Args({  16 });
-    bench->Args({  24 });
-    bench->Args({  32 });
-    bench->Args({  40 });
-    bench->Args({  48 });
-    bench->Args({  56 });
-    bench->Args({  72 });
-    bench->Args({  88 });
+    bench->Args({ 8 });
+    bench->Args({ 16 });
+    bench->Args({ 24 });
+    bench->Args({ 32 });
+    bench->Args({ 40 });
+    bench->Args({ 48 });
+    bench->Args({ 56 });
+    bench->Args({ 72 });
+    bench->Args({ 88 });
     bench->Args({ 104 });
     bench->Args({ 120 });
     bench->Args({ 152 });
@@ -133,7 +135,7 @@ static void FollyQueue(benchmark::State& state) {
     static std::atomic<type*> queue = nullptr;
 
     if (state.thread_index == 0) {
-        queue = new type{ uint32_t(1) << (state.range(0) - ctu::log2_v<sizeof(typename type::value_type)>) };
+        queue = new type{ (uint32_t(1) << state.range(0)) / uint32_t(sizeof(typename type::value_type)) };
     } else {
         while (queue.load(std::memory_order_relaxed) == nullptr) {}
     }
@@ -224,7 +226,7 @@ static void FollyDBQueue(benchmark::State& state) {
     static std::atomic<type*> queue = nullptr;
 
     if (state.thread_index == 0) {
-        queue = new type{ size_t(1) << (state.range(0) - ctu::log2_v<sizeof(element_type)>) };
+        queue = new type{ (uint32_t(1) << state.range(0)) / uint32_t(sizeof(element_type)) };
     } else {
         while (queue.load(std::memory_order_relaxed) == nullptr) {}
     }
@@ -290,7 +292,52 @@ static void Queue(benchmark::State& state) {
         for (auto _ : state) {
             int counter = 0;
             while (counter < 10000) {
-                counter += int(q.consume([](typename type::value_type*){ return true; }));
+                counter += int(q.consume([](typename type::value_type*) { return true; }));
+            }
+        }
+        state.SetItemsProcessed(state.iterations() * 10000);
+        state.SetBytesProcessed(state.iterations() * 10000 * sizeof(typename type::value_type));
+
+        if (q.is_empty() == false) {
+            state.SkipWithError("Not Empty after test");
+        }
+
+        delete queue;
+        queue = nullptr;
+    }
+}
+
+template<typename type>
+static void QueueRel(benchmark::State& state) {
+    static std::atomic<type*> queue = nullptr;
+
+    if (state.thread_index == 0) {
+        queue = new type{};
+    } else {
+        while (queue.load(std::memory_order_relaxed) == nullptr) {}
+    }
+
+    type& q = *queue;
+    if (state.thread_index == 0) {
+        ASSIGN_THREAD_AFFINITY(Thread1Affinity);
+        typename type::value_type t{};
+        for (auto _ : state) {
+            int counter = 0;
+            while (counter < 10000) {
+                bool result = q.emplace();
+                counter += int(result);
+            }
+        }
+        state.SetItemsProcessed(state.iterations() * 10000);
+        state.SetBytesProcessed(state.iterations() * 10000 * sizeof(typename type::value_type));
+    } else {
+        ASSIGN_THREAD_AFFINITY(Thread2Affinity);
+        int64_t counter = 0;
+        int64_t target = 0;
+        for (auto _ : state) {
+            int counter = 0;
+            while (counter < 10000) {
+                counter += int(q.consume([](typename type::value_type*) { return true; }));
             }
         }
         state.SetItemsProcessed(state.iterations() * 10000);
@@ -311,8 +358,7 @@ static void QueueMultiple(benchmark::State& state) {
 
     if (state.thread_index == 0) {
         queue = new type{};
-    }
-    else {
+    } else {
         while (queue.load(std::memory_order_relaxed) == nullptr) {}
     }
 
@@ -328,15 +374,14 @@ static void QueueMultiple(benchmark::State& state) {
         }
         state.SetItemsProcessed(state.iterations() * 10000);
         state.SetBytesProcessed(state.iterations() * 10000 * sizeof(typename type::value_type));
-    }
-    else {
+    } else {
         ASSIGN_THREAD_AFFINITY(Thread2Affinity);
         int64_t counter = 0;
         int64_t target = 0;
         for (auto _ : state) {
             target += 10000;
-            while(counter < target) {
-                counter += q.consume_all([](typename type::value_type * val) { return true; });
+            while (counter < target) {
+                counter += q.consume_all([](typename type::value_type* val) { return true; });
             }
         }
         state.SetItemsProcessed(state.iterations() * 10000);
@@ -356,7 +401,7 @@ static void RigtorpQueue(benchmark::State& state) {
     static std::atomic<type*> queue = nullptr;
 
     if (state.thread_index == 0) {
-        queue = new type{size_t(1) << (state.range(0) - ctu::log2_v<sizeof(typename type::value_type)>)};
+        queue = new type{ (uint32_t(1) << state.range(0)) / uint32_t(sizeof(typename type::value_type)) };
     } else {
         while (queue.load(std::memory_order_relaxed) == nullptr) {}
     }
@@ -402,7 +447,7 @@ static void MoodycamelQueue(benchmark::State& state) {
     static std::atomic<type*> queue = nullptr;
 
     if (state.thread_index == 0) {
-        queue = new type{(size_t(1) << (state.range(0) - ctu::log2_v<sizeof(typename type::value_type)>)) - 1};
+        queue = new type{ (uint32_t(1) << state.range(0)) / uint32_t(sizeof(typename type::value_type)) };
     } else {
         while (queue.load(std::memory_order_relaxed) == nullptr) {}
     }
@@ -440,6 +485,101 @@ static void MoodycamelQueue(benchmark::State& state) {
 
         delete queue;
         queue = nullptr;
+    }
+}
+
+template<typename type>
+static void BoostQueue(benchmark::State& state) {
+    static std::atomic<type*> queue = nullptr;
+
+    if (state.thread_index == 0) {
+        queue = new type{ (uint32_t(1) << state.range(0)) / uint32_t(sizeof(typename type::value_type)) };
+    } else {
+        while (queue.load(std::memory_order_relaxed) == nullptr) {}
+    }
+
+    type& q = *queue;
+    if (state.thread_index == 0) {
+        ASSIGN_THREAD_AFFINITY(Thread1Affinity);
+        typename type::value_type value{};
+        for (auto _ : state) {
+            int counter = 0;
+            while (counter < 10000) {
+                bool result = q.push(value);
+                counter += int(result);
+            }
+        }
+        state.SetItemsProcessed(state.iterations() * 10000);
+        state.SetBytesProcessed(state.iterations() * 10000 * sizeof(typename type::value_type));
+    } else {
+        ASSIGN_THREAD_AFFINITY(Thread2Affinity);
+        for (auto _ : state) {
+            int counter = 0;
+            while (counter < 10000) {
+                bool result = q.consume_one([](typename type::value_type&){});
+                counter += int(result);
+            }
+        }
+        state.SetItemsProcessed(state.iterations() * 10000);
+        state.SetBytesProcessed(state.iterations() * 10000 * sizeof(typename type::value_type));
+
+        if (q.empty() == false) {
+            state.SkipWithError("Not Empty after test");
+        }
+
+        delete queue;
+        queue = nullptr;
+    }
+}
+
+template<typename queue_type>
+static void QueueLatency(benchmark::State& state) {
+    constexpr auto LoadBias = 0;
+    
+    static std::atomic<queue_type*> queue1 = nullptr;
+    static std::atomic<queue_type*> queue2 = nullptr;
+
+    if (state.thread_index == 0) {
+        queue1 = new queue_type{};
+        for (int i = 0; i < LoadBias; i += 1) queue1.load()->produce();
+        while (queue2.load() == nullptr) {}
+    } else {
+        queue2 = new queue_type{};
+        for (int i = 0; i < LoadBias; i += 1) queue2.load()->produce();
+        while (queue1.load() == nullptr) {}
+    }
+
+    queue_type& q1 = *queue1;
+    queue_type& q2 = *queue2;
+    if (state.thread_index == 0) {
+        ASSIGN_THREAD_AFFINITY(Thread1Affinity);
+        for (auto _ : state) {
+            int counter = 0;
+            while (counter < 10000) {
+                q1.produce();
+                while (false == q2.consume([](typename queue_type::value_type*) { return true; }));
+                counter += 1;
+            }
+        }
+
+        //if (q1.is_empty() == false || q2.is_empty() == false) {
+        //    state.SkipWithError("Not Empty after test");
+        //}
+
+        delete queue1;
+        delete queue2;
+        queue1 = nullptr;
+        queue2 = nullptr;
+    } else {
+        ASSIGN_THREAD_AFFINITY(Thread2Affinity);
+        for (auto _ : state) {
+            int counter = 0;
+            while (counter < 10000) {
+                while (false == q1.consume([](typename queue_type::value_type*) { return true; }));
+                q2.produce();
+                counter += 1;
+            }
+        }
     }
 }
 
@@ -1375,5 +1515,235 @@ BENCHMARK_TEMPLATE(MoodycamelQueue, moodycamel::ReaderWriterQueue<DummyContainer
 BENCHMARK_TEMPLATE(MoodycamelQueue, moodycamel::ReaderWriterQueue<DummyContainer<48>>)->Apply(configure_folly_queue);
 BENCHMARK_TEMPLATE(MoodycamelQueue, moodycamel::ReaderWriterQueue<DummyContainer<56>>)->Apply(configure_folly_queue);
 BENCHMARK_TEMPLATE(MoodycamelQueue, moodycamel::ReaderWriterQueue<DummyContainer<64>>)->Apply(configure_folly_queue);
+
+BENCHMARK_TEMPLATE(BoostQueue, boost::lockfree::spsc_queue<DummyContainer<8>>)->Apply(configure_folly_queue);
+BENCHMARK_TEMPLATE(BoostQueue, boost::lockfree::spsc_queue<DummyContainer<16>>)->Apply(configure_folly_queue);
+BENCHMARK_TEMPLATE(BoostQueue, boost::lockfree::spsc_queue<DummyContainer<24>>)->Apply(configure_folly_queue);
+BENCHMARK_TEMPLATE(BoostQueue, boost::lockfree::spsc_queue<DummyContainer<32>>)->Apply(configure_folly_queue);
+BENCHMARK_TEMPLATE(BoostQueue, boost::lockfree::spsc_queue<DummyContainer<40>>)->Apply(configure_folly_queue);
+BENCHMARK_TEMPLATE(BoostQueue, boost::lockfree::spsc_queue<DummyContainer<48>>)->Apply(configure_folly_queue);
+BENCHMARK_TEMPLATE(BoostQueue, boost::lockfree::spsc_queue<DummyContainer<56>>)->Apply(configure_folly_queue);
+BENCHMARK_TEMPLATE(BoostQueue, boost::lockfree::spsc_queue<DummyContainer<64>>)->Apply(configure_folly_queue);
+
+BENCHMARK_TEMPLATE(QueueLatency, spsc_queue<uint64_t, 12>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueLatency, spsc_queue<uint64_t, 13>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueLatency, spsc_queue<uint64_t, 14>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueLatency, spsc_queue<uint64_t, 15>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueLatency, spsc_queue<uint64_t, 16>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueLatency, spsc_queue<uint64_t, 17>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueLatency, spsc_queue<uint64_t, 18>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueLatency, spsc_queue<uint64_t, 19>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueLatency, spsc_queue<uint64_t, 20>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueLatency, spsc_queue<uint64_t, 21>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueLatency, spsc_queue<uint64_t, 22>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueLatency, spsc_queue<uint64_t, 23>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueLatency, spsc_queue<uint64_t, 24>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueLatency, spsc_queue<uint64_t, 25>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueLatency, spsc_queue<uint64_t, 26>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueLatency, spsc_queue<uint64_t, 27>)->Apply(configure_queue);
+
+BENCHMARK_TEMPLATE(QueueLatency, spsc_queue_cached<uint64_t, 12>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueLatency, spsc_queue_cached<uint64_t, 13>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueLatency, spsc_queue_cached<uint64_t, 14>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueLatency, spsc_queue_cached<uint64_t, 15>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueLatency, spsc_queue_cached<uint64_t, 16>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueLatency, spsc_queue_cached<uint64_t, 17>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueLatency, spsc_queue_cached<uint64_t, 18>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueLatency, spsc_queue_cached<uint64_t, 19>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueLatency, spsc_queue_cached<uint64_t, 20>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueLatency, spsc_queue_cached<uint64_t, 21>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueLatency, spsc_queue_cached<uint64_t, 22>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueLatency, spsc_queue_cached<uint64_t, 23>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueLatency, spsc_queue_cached<uint64_t, 24>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueLatency, spsc_queue_cached<uint64_t, 25>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueLatency, spsc_queue_cached<uint64_t, 26>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueLatency, spsc_queue_cached<uint64_t, 27>)->Apply(configure_queue);
+
+BENCHMARK_TEMPLATE(QueueLatency, spsc_queue_cached_ptr<uint64_t, 12>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueLatency, spsc_queue_cached_ptr<uint64_t, 13>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueLatency, spsc_queue_cached_ptr<uint64_t, 14>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueLatency, spsc_queue_cached_ptr<uint64_t, 15>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueLatency, spsc_queue_cached_ptr<uint64_t, 16>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueLatency, spsc_queue_cached_ptr<uint64_t, 17>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueLatency, spsc_queue_cached_ptr<uint64_t, 18>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueLatency, spsc_queue_cached_ptr<uint64_t, 19>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueLatency, spsc_queue_cached_ptr<uint64_t, 20>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueLatency, spsc_queue_cached_ptr<uint64_t, 21>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueLatency, spsc_queue_cached_ptr<uint64_t, 22>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueLatency, spsc_queue_cached_ptr<uint64_t, 23>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueLatency, spsc_queue_cached_ptr<uint64_t, 24>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueLatency, spsc_queue_cached_ptr<uint64_t, 25>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueLatency, spsc_queue_cached_ptr<uint64_t, 26>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueLatency, spsc_queue_cached_ptr<uint64_t, 27>)->Apply(configure_queue);
+
+BENCHMARK_TEMPLATE(QueueLatency, spsc_queue_chunked<uint64_t, size_t(1) << 12>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueLatency, spsc_queue_chunked<uint64_t, size_t(1) << 13>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueLatency, spsc_queue_chunked<uint64_t, size_t(1) << 14>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueLatency, spsc_queue_chunked<uint64_t, size_t(1) << 15>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueLatency, spsc_queue_chunked<uint64_t, size_t(1) << 16>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueLatency, spsc_queue_chunked<uint64_t, size_t(1) << 17>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueLatency, spsc_queue_chunked<uint64_t, size_t(1) << 18>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueLatency, spsc_queue_chunked<uint64_t, size_t(1) << 19>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueLatency, spsc_queue_chunked<uint64_t, size_t(1) << 20>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueLatency, spsc_queue_chunked<uint64_t, size_t(1) << 21>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueLatency, spsc_queue_chunked<uint64_t, size_t(1) << 22>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueLatency, spsc_queue_chunked<uint64_t, size_t(1) << 23>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueLatency, spsc_queue_chunked<uint64_t, size_t(1) << 24>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueLatency, spsc_queue_chunked<uint64_t, size_t(1) << 25>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueLatency, spsc_queue_chunked<uint64_t, size_t(1) << 26>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueLatency, spsc_queue_chunked<uint64_t, size_t(1) << 27>)->Apply(configure_queue);
+
+BENCHMARK_TEMPLATE(QueueLatency, spsc_queue_chunked_ptr<uint64_t, size_t(1) << 12>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueLatency, spsc_queue_chunked_ptr<uint64_t, size_t(1) << 13>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueLatency, spsc_queue_chunked_ptr<uint64_t, size_t(1) << 14>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueLatency, spsc_queue_chunked_ptr<uint64_t, size_t(1) << 15>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueLatency, spsc_queue_chunked_ptr<uint64_t, size_t(1) << 16>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueLatency, spsc_queue_chunked_ptr<uint64_t, size_t(1) << 17>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueLatency, spsc_queue_chunked_ptr<uint64_t, size_t(1) << 18>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueLatency, spsc_queue_chunked_ptr<uint64_t, size_t(1) << 19>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueLatency, spsc_queue_chunked_ptr<uint64_t, size_t(1) << 20>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueLatency, spsc_queue_chunked_ptr<uint64_t, size_t(1) << 21>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueLatency, spsc_queue_chunked_ptr<uint64_t, size_t(1) << 22>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueLatency, spsc_queue_chunked_ptr<uint64_t, size_t(1) << 23>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueLatency, spsc_queue_chunked_ptr<uint64_t, size_t(1) << 24>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueLatency, spsc_queue_chunked_ptr<uint64_t, size_t(1) << 25>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueLatency, spsc_queue_chunked_ptr<uint64_t, size_t(1) << 26>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueLatency, spsc_queue_chunked_ptr<uint64_t, size_t(1) << 27>)->Apply(configure_queue);
+
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<8>, size_t(1) << 12>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<8>, size_t(1) << 13>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<8>, size_t(1) << 14>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<8>, size_t(1) << 15>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<8>, size_t(1) << 16>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<8>, size_t(1) << 17>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<8>, size_t(1) << 18>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<8>, size_t(1) << 19>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<8>, size_t(1) << 20>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<8>, size_t(1) << 21>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<8>, size_t(1) << 22>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<8>, size_t(1) << 23>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<8>, size_t(1) << 24>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<8>, size_t(1) << 25>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<8>, size_t(1) << 26>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<8>, size_t(1) << 27>)->Apply(configure_queue);
+
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<16>, size_t(1) << 11>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<16>, size_t(1) << 12>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<16>, size_t(1) << 13>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<16>, size_t(1) << 14>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<16>, size_t(1) << 15>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<16>, size_t(1) << 16>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<16>, size_t(1) << 17>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<16>, size_t(1) << 18>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<16>, size_t(1) << 19>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<16>, size_t(1) << 20>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<16>, size_t(1) << 21>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<16>, size_t(1) << 22>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<16>, size_t(1) << 23>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<16>, size_t(1) << 24>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<16>, size_t(1) << 25>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<16>, size_t(1) << 26>)->Apply(configure_queue);
+
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<24>, size_t(3) <<  9>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<24>, size_t(3) << 10>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<24>, size_t(3) << 11>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<24>, size_t(3) << 12>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<24>, size_t(3) << 13>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<24>, size_t(3) << 14>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<24>, size_t(3) << 15>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<24>, size_t(3) << 16>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<24>, size_t(3) << 17>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<24>, size_t(3) << 18>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<24>, size_t(3) << 19>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<24>, size_t(3) << 20>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<24>, size_t(3) << 21>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<24>, size_t(3) << 22>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<24>, size_t(3) << 23>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<24>, size_t(3) << 24>)->Apply(configure_queue);
+
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<32>, size_t(1) << 10>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<32>, size_t(1) << 11>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<32>, size_t(1) << 12>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<32>, size_t(1) << 13>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<32>, size_t(1) << 14>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<32>, size_t(1) << 15>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<32>, size_t(1) << 16>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<32>, size_t(1) << 17>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<32>, size_t(1) << 18>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<32>, size_t(1) << 19>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<32>, size_t(1) << 20>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<32>, size_t(1) << 21>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<32>, size_t(1) << 22>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<32>, size_t(1) << 23>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<32>, size_t(1) << 24>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<32>, size_t(1) << 25>)->Apply(configure_queue);
+
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<40>, size_t(7) <<  7>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<40>, size_t(7) <<  8>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<40>, size_t(7) <<  9>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<40>, size_t(7) << 10>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<40>, size_t(7) << 11>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<40>, size_t(7) << 12>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<40>, size_t(7) << 13>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<40>, size_t(7) << 14>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<40>, size_t(7) << 15>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<40>, size_t(7) << 16>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<40>, size_t(7) << 17>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<40>, size_t(7) << 18>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<40>, size_t(7) << 19>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<40>, size_t(7) << 20>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<40>, size_t(7) << 21>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<40>, size_t(7) << 22>)->Apply(configure_queue);
+
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<48>, size_t(6) <<  7>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<48>, size_t(6) <<  8>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<48>, size_t(6) <<  9>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<48>, size_t(6) << 10>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<48>, size_t(6) << 11>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<48>, size_t(6) << 12>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<48>, size_t(6) << 13>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<48>, size_t(6) << 14>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<48>, size_t(6) << 15>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<48>, size_t(6) << 16>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<48>, size_t(6) << 17>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<48>, size_t(6) << 18>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<48>, size_t(6) << 19>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<48>, size_t(6) << 20>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<48>, size_t(6) << 21>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<48>, size_t(6) << 22>)->Apply(configure_queue);
+
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<56>, size_t(5) <<  7>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<56>, size_t(5) <<  8>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<56>, size_t(5) <<  9>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<56>, size_t(5) << 10>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<56>, size_t(5) << 11>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<56>, size_t(5) << 12>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<56>, size_t(5) << 13>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<56>, size_t(5) << 14>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<56>, size_t(5) << 15>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<56>, size_t(5) << 16>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<56>, size_t(5) << 17>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<56>, size_t(5) << 18>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<56>, size_t(5) << 19>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<56>, size_t(5) << 20>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<56>, size_t(5) << 21>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<56>, size_t(5) << 22>)->Apply(configure_queue);
+
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<64>, size_t(1) <<  9>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<64>, size_t(1) << 10>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<64>, size_t(1) << 11>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<64>, size_t(1) << 12>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<64>, size_t(1) << 13>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<64>, size_t(1) << 14>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<64>, size_t(1) << 15>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<64>, size_t(1) << 16>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<64>, size_t(1) << 17>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<64>, size_t(1) << 18>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<64>, size_t(1) << 19>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<64>, size_t(1) << 20>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<64>, size_t(1) << 21>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<64>, size_t(1) << 22>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<64>, size_t(1) << 23>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(QueueRel, deaod::spsc_queue<DummyContainer<64>, size_t(1) << 24>)->Apply(configure_queue);
 
 BENCHMARK_MAIN();

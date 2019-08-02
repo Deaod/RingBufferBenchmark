@@ -14,6 +14,7 @@ add_executable(RingBufferBenchmark
     compile_time_utilities.hpp
     scope_guard.hpp
     spsc_queue.hpp
+    spsc_queue_release.hpp
     spsc_ring_buffer.hpp
     spsc_ring_buffer_cached.hpp
     spsc_ring_buffer_chunked.hpp
@@ -32,7 +33,7 @@ if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
 elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
     target_compile_options(RingBufferBenchmark PRIVATE "-mavx")
 elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
-    target_compile_options(RingBufferBenchmark PRIVATE "/arch:AVX")
+    target_compile_options(RingBufferBenchmark PRIVATE "/arch:AVX" PRIVATE "/bigobj")
 else()
     message(ERROR "Unknown compiler")
 endif()
