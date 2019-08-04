@@ -26,7 +26,7 @@
 #endif
 
 constexpr uint64_t Thread1Affinity = 1 << 0;
-constexpr uint64_t Thread2Affinity = 1 << 8;
+constexpr uint64_t Thread2Affinity = 1 << 2;
 
 void configure_benchmark(benchmark::internal::Benchmark* bench) {
     bench->Threads(2);
