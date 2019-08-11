@@ -769,14 +769,143 @@ BENCHMARK_TEMPLATE(FollyQueue, folly::ProducerConsumerQueue<DummyContainer<48>>)
 BENCHMARK_TEMPLATE(FollyQueue, folly::ProducerConsumerQueue<DummyContainer<56>>)->Apply(configure_folly_queue);
 BENCHMARK_TEMPLATE(FollyQueue, folly::ProducerConsumerQueue<DummyContainer<64>>)->Apply(configure_folly_queue);
 
+#if 1
 BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<8>, false, 12>, DummyContainer<8>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<8>, false, 12>, DummyContainer<8>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<8>, false, 12>, DummyContainer<8>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<8>, false, 12>, DummyContainer<8>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<8>, false, 12>, DummyContainer<8>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<8>, false, 12>, DummyContainer<8>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<8>, false, 12>, DummyContainer<8>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<8>, false, 12>, DummyContainer<8>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<8>, false, 12>, DummyContainer<8>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<8>, false, 12>, DummyContainer<8>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<8>, false, 12>, DummyContainer<8>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<8>, false, 12>, DummyContainer<8>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<8>, false, 12>, DummyContainer<8>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<8>, false, 12>, DummyContainer<8>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<8>, false, 12>, DummyContainer<8>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<8>, false, 12>, DummyContainer<8>)->Apply(configure_queue);
+
 BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<16>, false, 11>, DummyContainer<16>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<16>, false, 11>, DummyContainer<16>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<16>, false, 11>, DummyContainer<16>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<16>, false, 11>, DummyContainer<16>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<16>, false, 11>, DummyContainer<16>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<16>, false, 11>, DummyContainer<16>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<16>, false, 11>, DummyContainer<16>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<16>, false, 11>, DummyContainer<16>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<16>, false, 11>, DummyContainer<16>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<16>, false, 11>, DummyContainer<16>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<16>, false, 11>, DummyContainer<16>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<16>, false, 11>, DummyContainer<16>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<16>, false, 11>, DummyContainer<16>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<16>, false, 11>, DummyContainer<16>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<16>, false, 11>, DummyContainer<16>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<16>, false, 11>, DummyContainer<16>)->Apply(configure_queue);
+
 BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<24>, false, 10>, DummyContainer<24>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<24>, false, 10>, DummyContainer<24>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<24>, false, 10>, DummyContainer<24>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<24>, false, 10>, DummyContainer<24>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<24>, false, 10>, DummyContainer<24>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<24>, false, 10>, DummyContainer<24>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<24>, false, 10>, DummyContainer<24>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<24>, false, 10>, DummyContainer<24>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<24>, false, 10>, DummyContainer<24>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<24>, false, 10>, DummyContainer<24>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<24>, false, 10>, DummyContainer<24>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<24>, false, 10>, DummyContainer<24>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<24>, false, 10>, DummyContainer<24>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<24>, false, 10>, DummyContainer<24>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<24>, false, 10>, DummyContainer<24>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<24>, false, 10>, DummyContainer<24>)->Apply(configure_queue);
+
 BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<32>, false, 10>, DummyContainer<32>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<32>, false, 10>, DummyContainer<32>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<32>, false, 10>, DummyContainer<32>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<32>, false, 10>, DummyContainer<32>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<32>, false, 10>, DummyContainer<32>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<32>, false, 10>, DummyContainer<32>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<32>, false, 10>, DummyContainer<32>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<32>, false, 10>, DummyContainer<32>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<32>, false, 10>, DummyContainer<32>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<32>, false, 10>, DummyContainer<32>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<32>, false, 10>, DummyContainer<32>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<32>, false, 10>, DummyContainer<32>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<32>, false, 10>, DummyContainer<32>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<32>, false, 10>, DummyContainer<32>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<32>, false, 10>, DummyContainer<32>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<32>, false, 10>, DummyContainer<32>)->Apply(configure_queue);
+
 BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<40>, false, 9>, DummyContainer<40>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<40>, false, 9>, DummyContainer<40>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<40>, false, 9>, DummyContainer<40>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<40>, false, 9>, DummyContainer<40>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<40>, false, 9>, DummyContainer<40>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<40>, false, 9>, DummyContainer<40>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<40>, false, 9>, DummyContainer<40>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<40>, false, 9>, DummyContainer<40>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<40>, false, 9>, DummyContainer<40>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<40>, false, 9>, DummyContainer<40>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<40>, false, 9>, DummyContainer<40>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<40>, false, 9>, DummyContainer<40>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<40>, false, 9>, DummyContainer<40>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<40>, false, 9>, DummyContainer<40>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<40>, false, 9>, DummyContainer<40>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<40>, false, 9>, DummyContainer<40>)->Apply(configure_queue);
+
 BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<48>, false, 9>, DummyContainer<48>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<48>, false, 9>, DummyContainer<48>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<48>, false, 9>, DummyContainer<48>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<48>, false, 9>, DummyContainer<48>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<48>, false, 9>, DummyContainer<48>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<48>, false, 9>, DummyContainer<48>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<48>, false, 9>, DummyContainer<48>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<48>, false, 9>, DummyContainer<48>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<48>, false, 9>, DummyContainer<48>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<48>, false, 9>, DummyContainer<48>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<48>, false, 9>, DummyContainer<48>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<48>, false, 9>, DummyContainer<48>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<48>, false, 9>, DummyContainer<48>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<48>, false, 9>, DummyContainer<48>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<48>, false, 9>, DummyContainer<48>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<48>, false, 9>, DummyContainer<48>)->Apply(configure_queue);
+
 BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<56>, false, 9>, DummyContainer<56>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<56>, false, 9>, DummyContainer<56>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<56>, false, 9>, DummyContainer<56>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<56>, false, 9>, DummyContainer<56>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<56>, false, 9>, DummyContainer<56>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<56>, false, 9>, DummyContainer<56>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<56>, false, 9>, DummyContainer<56>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<56>, false, 9>, DummyContainer<56>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<56>, false, 9>, DummyContainer<56>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<56>, false, 9>, DummyContainer<56>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<56>, false, 9>, DummyContainer<56>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<56>, false, 9>, DummyContainer<56>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<56>, false, 9>, DummyContainer<56>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<56>, false, 9>, DummyContainer<56>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<56>, false, 9>, DummyContainer<56>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<56>, false, 9>, DummyContainer<56>)->Apply(configure_queue);
+
 BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<64>, false, 9>, DummyContainer<64>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<64>, false, 9>, DummyContainer<64>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<64>, false, 9>, DummyContainer<64>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<64>, false, 9>, DummyContainer<64>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<64>, false, 9>, DummyContainer<64>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<64>, false, 9>, DummyContainer<64>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<64>, false, 9>, DummyContainer<64>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<64>, false, 9>, DummyContainer<64>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<64>, false, 9>, DummyContainer<64>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<64>, false, 9>, DummyContainer<64>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<64>, false, 9>, DummyContainer<64>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<64>, false, 9>, DummyContainer<64>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<64>, false, 9>, DummyContainer<64>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<64>, false, 9>, DummyContainer<64>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<64>, false, 9>, DummyContainer<64>)->Apply(configure_queue);
+BENCHMARK_TEMPLATE(FollyUnboundedQueue, folly::USPSCQueue<DummyContainer<64>, false, 9>, DummyContainer<64>)->Apply(configure_queue);
+#endif
 
 BENCHMARK_TEMPLATE(FollyDBQueue, folly::DSPSCQueue<DummyContainer<8>, false, 12>, DummyContainer<8>)->Apply(configure_folly_queue);
 BENCHMARK_TEMPLATE(FollyDBQueue, folly::DSPSCQueue<DummyContainer<16>, false, 11>, DummyContainer<16>)->Apply(configure_folly_queue);
@@ -925,10 +1054,6 @@ BENCHMARK_TEMPLATE(Queue, spsc_queue<DummyContainer<64>, 23>)->Apply(configure_q
 BENCHMARK_TEMPLATE(Queue, spsc_queue<DummyContainer<64>, 24>)->Apply(configure_queue);
 #endif
 
-//
-// 
-//
-
 #if 1
 BENCHMARK_TEMPLATE(Queue, spsc_queue_cached<DummyContainer<8>, 12>)->Apply(configure_queue);
 BENCHMARK_TEMPLATE(Queue, spsc_queue_cached<DummyContainer<8>, 13>)->Apply(configure_queue);
@@ -1066,10 +1191,6 @@ BENCHMARK_TEMPLATE(Queue, spsc_queue_cached<DummyContainer<64>, 22>)->Apply(conf
 BENCHMARK_TEMPLATE(Queue, spsc_queue_cached<DummyContainer<64>, 23>)->Apply(configure_queue);
 BENCHMARK_TEMPLATE(Queue, spsc_queue_cached<DummyContainer<64>, 24>)->Apply(configure_queue);
 #endif
-
-//
-//
-//
 
 #if 1
 BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<8>, 12>)->Apply(configure_queue);
@@ -1209,10 +1330,6 @@ BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<64>, 23>)->Apply(
 BENCHMARK_TEMPLATE(Queue, spsc_queue_cached_ptr<DummyContainer<64>, 24>)->Apply(configure_queue);
 #endif
 
-//
-//
-//
-
 #if 1
 BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked<DummyContainer<8>, (size_t(1) << 15) / 8>)->Apply(configure_queue);
 BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked<DummyContainer<8>, (size_t(1) << 16) / 8>)->Apply(configure_queue);
@@ -1350,10 +1467,6 @@ BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked<DummyContainer<64>, (size_t(1) << 2
 BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked<DummyContainer<64>, (size_t(1) << 29) / 64>)->Apply(configure_queue);
 BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked<DummyContainer<64>, (size_t(1) << 30) / 64>)->Apply(configure_queue);
 #endif
-
-//
-//
-//
 
 #if 1
 BENCHMARK_TEMPLATE(Queue, spsc_queue_chunked_ptr<DummyContainer<8>, (size_t(1) << 15) / 8>)->Apply(configure_queue);
