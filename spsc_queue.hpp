@@ -9,9 +9,9 @@
 #include "scope_guard.hpp"
 #include "compile_time_utilities.hpp"
 
-template<typename _element_type, int _queue_size_log2, int _align_log2 = 7>
+template<typename T, int _queue_size_log2, int _align_log2 = 7>
 struct alignas((size_t) 1 << _align_log2) spsc_queue {
-    using value_type = _element_type;
+    using value_type = T;
     static const auto size = size_t(1) << _queue_size_log2;
     static const auto mask = size - 1;
     static const auto align = size_t(1) << _align_log2;
@@ -175,14 +175,14 @@ struct alignas((size_t) 1 << _align_log2) spsc_queue {
     }
 
 private:
-    alignas(align) std::byte _buffer[size * sizeof(_element_type)];
+    alignas(align) std::byte _buffer[size * sizeof(T)];
     alignas(align) std::atomic<size_t> _produce_pos = 0;
     alignas(align) std::atomic<size_t> _consume_pos = 0;
 };
 
-template<typename _element_type, int _queue_size_log2, int _align_log2 = 7>
+template<typename T, int _queue_size_log2, int _align_log2 = 7>
 struct alignas((size_t) 1 << _align_log2) spsc_queue_cached {
-    using value_type = _element_type;
+    using value_type = T;
     static const auto size = size_t(1) << _queue_size_log2;
     static const auto mask = size - 1;
     static const auto align = size_t(1) << _align_log2;
@@ -365,9 +365,9 @@ private:
     mutable size_t _produce_pos_cache = 0;
 };
 
-template<typename _element_type, int _queue_size, int _l1d_size_log2 = 15, int _align_log2 = 7>
+template<typename T, int _queue_size, int _l1d_size_log2 = 15, int _align_log2 = 7>
 struct alignas((size_t)1 << _align_log2) spsc_queue_chunked {
-    using value_type = _element_type;
+    using value_type = T;
     static_assert(sizeof(value_type) <= (size_t(1) << _l1d_size_log2), "Elements must not be larger than L1D size.");
 
     static const auto size = _queue_size;
@@ -677,9 +677,9 @@ private:
     alignas(align) std::atomic<chunk*> _tail = nullptr;
 };
 
-template<typename _element_type, int _queue_size_log2, int _align_log2 = 7>
+template<typename T, int _queue_size_log2, int _align_log2 = 7>
 struct alignas((size_t)1 << _align_log2) spsc_queue_cached_ptr {
-    using value_type = _element_type;
+    using value_type = T;
     static const auto size = size_t(1) << _queue_size_log2;
     static const auto mask = size - 1;
     static const auto align = size_t(1) << _align_log2;
@@ -868,12 +868,12 @@ private:
 };
 
 template<
-    typename _element_type,
+    typename T,
     size_t _queue_size,
     size_t _chunk_size_bytes = (1 << 15), // should not exceed L1D size of target arch
     int _align_log2 = 7>
 struct alignas((size_t)1 << _align_log2) spsc_queue_chunked_ptr {
-    using value_type = _element_type;
+    using value_type = T;
 
     static const auto size = _queue_size;
     static const auto align = size_t(1) << _align_log2;
@@ -1067,8 +1067,17 @@ struct alignas((size_t)1 << _align_log2) spsc_queue_chunked_ptr {
         return true;
     }
 
+    bool push(const value_type& e) {
+        return this->produce(e);
+    }
+
+    template<typename... Args>
+    bool emplace(Args&&... args) {
+        return this->produce(std::forward<Args>(args)...);
+    }
+
     template<typename callable>
-    bool consume(callable && callback) noexcept(noexcept(callback(static_cast<value_type*>(nullptr)))) {
+    bool consume(callable && callback) noexcept(noexcept(callback(std::declval<value_type&>()))) {
         auto tail = _tail.load(std::memory_order_relaxed);
 
         auto consume_pos = tail->_consume_pos.load(std::memory_order_relaxed);
@@ -1094,7 +1103,7 @@ struct alignas((size_t)1 << _align_log2) spsc_queue_chunked_ptr {
                         return false;
                     }
 
-                    auto result = callback(consume_pos);
+                    auto result = callback(*consume_pos);
                     if (result) {
                         consume_pos->~value_type();
 
@@ -1112,7 +1121,7 @@ struct alignas((size_t)1 << _align_log2) spsc_queue_chunked_ptr {
             //}
         }
 
-        if (callback(consume_pos)) {
+        if (callback(*consume_pos)) {
             consume_pos->~value_type();
 
             consume_pos = (consume_pos + 1);
@@ -1124,6 +1133,59 @@ struct alignas((size_t)1 << _align_log2) spsc_queue_chunked_ptr {
         }
 
         return false;
+    }
+
+    bool pop(value_type& e) {
+        auto tail = _tail.load(std::memory_order_relaxed);
+
+        auto consume_pos = tail->_consume_pos.load(std::memory_order_relaxed);
+        auto produce_pos = tail->_produce_pos_cache;
+
+        if (produce_pos == consume_pos) {
+            //produce_pos = tail->_produce_pos_cache = tail->_produce_pos.load(std::memory_order_acquire);
+            //if (produce_pos == consume_pos) {
+                auto head = _head.load(std::memory_order_acquire);
+
+                produce_pos = tail->_produce_pos_cache = tail->_produce_pos.load(std::memory_order_acquire);
+                if (produce_pos == consume_pos) {
+                    if (tail == head) {
+                        return false;
+                    }
+
+                    tail = tail->_next;
+
+                    consume_pos = tail->_consume_pos.load(std::memory_order_relaxed);
+                    produce_pos = tail->_produce_pos_cache = tail->_produce_pos.load(std::memory_order_acquire);
+
+                    if (produce_pos == consume_pos) {
+                        return false;
+                    }
+
+                    e = std::move(*consume_pos);
+                    consume_pos->~value_type();
+
+                    consume_pos = std::launder(consume_pos + 1);
+                    if (consume_pos == (value_type*)tail->_buffer + chunk_size) {
+                        consume_pos = (value_type*)tail->_buffer;
+                    }
+                    tail->_consume_pos.store(consume_pos, std::memory_order_release);
+
+                    _tail.store(tail, std::memory_order_release);
+
+                    return true;
+                }
+            //}
+        }
+
+        e = std::move(*consume_pos);
+        consume_pos->~value_type();
+
+        consume_pos = std::launder(consume_pos + 1);
+        if (consume_pos == (value_type*)tail->_buffer + chunk_size) {
+            consume_pos = (value_type*)tail->_buffer;
+        }
+        tail->_consume_pos.store(consume_pos, std::memory_order_release);
+        return true;
     }
 
     // returns true if buffer is empty after this call

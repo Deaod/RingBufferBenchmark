@@ -9,6 +9,10 @@ find_package(folly CONFIG REQUIRED)
 find_package(ZLIB REQUIRED)
 
 add_executable(RingBufferBenchmark
+    DummyContainer.hpp
+    Platform.hpp
+    BenchmarkSupport.hpp
+
     RingBufferBenchmark.cpp
     aligned_alloc.hpp
     compile_time_utilities.hpp
@@ -19,9 +23,48 @@ add_executable(RingBufferBenchmark
     spsc_ring_buffer_cached.hpp
     spsc_ring_buffer_chunked.hpp
     spsc_ring_buffer_heap.hpp
+    ce_queue.hpp
     rigtorpSPSCQueue.h
     moodycamel/atomicops.h
     moodycamel/readwriterqueue.h
+    
+    LamportQueue2.hpp
+    LamportQueue3.hpp
+    LamportQueue4.hpp
+    LamportQueue5.hpp
+    LamportQueue6.hpp
+    LamportQueue7.hpp
+    LamportQueueTest.cpp
+
+    FastForward1.hpp
+    FastForward2.hpp
+    FastForward3.hpp
+    FastForward4.hpp
+    FastForward5.hpp
+    FastForwardTest.cpp
+
+    MCRingBuffer1.hpp
+    MCRingBuffer2.hpp
+    MCRingBuffer3.hpp
+    MCRingBuffer4.hpp
+    MCRingBuffer5.hpp
+    MCRingBuffer6.hpp
+    MCRingBufferTest.cpp
+
+    GFFQueue1.hpp
+    GFFQueue2.hpp
+    GFFQueue3.hpp
+    GFFQueue4.hpp
+    GFFQueueTest.cpp
+
+    ChunkedQueue1.hpp
+    ChunkedQueue2.hpp
+    ChunkedQueue3.hpp
+    ChunkedQueue4.hpp
+    ChunkedQueue5.hpp
+    ChunkedQueue6.hpp
+    ChunkedQueue7.hpp
+    ChunkedQueueTest.cpp
 )
 
 set_property(TARGET RingBufferBenchmark PROPERTY CXX_STANDARD 17)
