@@ -13,14 +13,12 @@ inline void aligned_free(void* ptr) {
     _aligned_free(ptr);
 }
 
-#elif __STDC_VERSION__ >= 201112L
+#else
 
 inline void aligned_free(void* ptr) {
     free(ptr);
 }
 
-#else
-#error "No known way to implement aligned_alloc, please add new branch."
 #endif
 
 // For use with std::unique_ptr as deleter
@@ -29,4 +27,3 @@ struct aligned_free_deleter {
         aligned_free(ptr);
     }
 };
-

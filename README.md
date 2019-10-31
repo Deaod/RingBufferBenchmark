@@ -27,6 +27,12 @@ RingBufferBenchmark.sln
 cd ..
 ```
 
-### Others
+### Linux with Clang
 
-TBD
+```
+git submodule update --init
+mkdir build
+cd build
+cmake -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_BUILD_TYPE=Release ..
+./RingBufferBenchmark
+```
