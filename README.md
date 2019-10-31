@@ -30,9 +30,22 @@ cd ..
 ### Linux with Clang
 
 ```
+git clone https://github.com/Deaod/RingBufferBenchmark
+cd RingBufferBenchmark
 git submodule update --init
 mkdir build
 cd build
+
+# Build
 cmake -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_BUILD_TYPE=Release ..
+make -j$(nproc)
+
+# Run
 ./RingBufferBenchmark
 ```
+
+Note: Clang will output about 600 warnings that some values are uninitialized
+
+### Linux with GCC
+
+The codebase currently does not compile with GCC 8 and GCC 9
