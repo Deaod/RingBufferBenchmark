@@ -28,6 +28,7 @@ add_executable(RingBufferBenchmark
     moodycamel/atomicops.h
     moodycamel/readwriterqueue.h
     
+    LamportQueue1.hpp
     LamportQueue2.hpp
     LamportQueue3.hpp
     LamportQueue4.hpp
