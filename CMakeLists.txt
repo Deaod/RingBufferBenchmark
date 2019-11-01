@@ -7,6 +7,11 @@ set(BENCHMARK_ENABLE_INSTALL OFF CACHE BOOL "" FORCE)
 add_subdirectory(benchmark)
 find_package(folly CONFIG REQUIRED)
 find_package(ZLIB REQUIRED)
+find_package(gflags REQUIRED)
+
+# lockfree introduced in Boost 1.53.0
+# and requires the following components
+find_package(Boost 1.53.0 COMPONENTS thread program_options context filesystem regex system)
 
 add_executable(RingBufferBenchmark
     DummyContainer.hpp
@@ -27,7 +32,7 @@ add_executable(RingBufferBenchmark
     rigtorpSPSCQueue.h
     moodycamel/atomicops.h
     moodycamel/readwriterqueue.h
-    
+
     LamportQueue2.hpp
     LamportQueue3.hpp
     LamportQueue4.hpp
@@ -80,4 +85,3 @@ elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
 else()
     message(ERROR "Unknown compiler")
 endif()
-
