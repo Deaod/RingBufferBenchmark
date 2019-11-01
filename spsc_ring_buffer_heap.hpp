@@ -5,6 +5,7 @@
 #include <type_traits>
 #include <array>
 #include <limits>
+#include <memory>
 #include "aligned_alloc.hpp"
 #include "compile_time_utilities.hpp"
 #include "scope_guard.hpp"
