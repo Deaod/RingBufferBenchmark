@@ -71,7 +71,7 @@ struct ChunkedQueue7 {
                     n = (T*)tc->buffer.data();
                 }
 
-                // this next line is exactly where it needs to be, unless you
+                // this _next line is exactly where it needs to be, unless you
                 // like deadlocks.
                 tc->head_cache = tc->head.load(std::memory_order_acquire);
 
@@ -111,7 +111,7 @@ struct ChunkedQueue7 {
                 if (t == h) return 0;
 
                 T* elem = std::launder(h);
-                std::forward<Callable>(f)(std::move(*elem));
+                std::invoke(std::forward<Callable>(f), std::move(*elem));
                 elem->~T();
 
                 h += 1;
@@ -125,7 +125,7 @@ struct ChunkedQueue7 {
         }
 
         T* elem = std::launder(h);
-        std::forward<Callable>(f)(std::move(*elem));
+        std::invoke(std::forward<Callable>(f), std::move(*elem));
         elem->~T();
 
         h += 1;

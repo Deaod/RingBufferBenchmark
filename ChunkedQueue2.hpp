@@ -94,7 +94,7 @@ struct ChunkedQueue2 {
 
             T* elem = std::launder(reinterpret_cast<T*>(
                 hc->buffer.data() + h * sizeof(T)));
-            std::forward<Callable>(f)(std::move(*elem));
+            std::invoke(std::forward<Callable>(f), std::move(*elem));
             elem->~T();
 
             h += 1;
@@ -106,7 +106,7 @@ struct ChunkedQueue2 {
 
         T* elem = std::launder(reinterpret_cast<T*>(
             hc->buffer.data() + h * sizeof(T)));
-        std::forward<Callable>(f)(std::move(*elem));
+        std::invoke(std::forward<Callable>(f), std::move(*elem));
         elem->~T();
 
         h += 1;

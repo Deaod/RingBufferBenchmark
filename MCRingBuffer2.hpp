@@ -32,7 +32,7 @@ struct MCRingBuffer2 {
         if (h == t && h == (tail_cache = tail)) return 0;
         T* elem = std::launder(reinterpret_cast<T*>(
             buffer.data() + h * sizeof(T)));
-        std::forward<Callable>(f)(std::move(*elem));
+        std::invoke(std::forward<Callable>(f), std::move(*elem));
         elem->~T();
         h += 1;
         if (h == SIZE) h = 0;

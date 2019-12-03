@@ -66,7 +66,7 @@ struct ChunkedQueue5 {
                 n = (t + 1);
                 if (n == chunk_size) n = 0;
 
-                // this next line is exactly where it needs to be, unless you
+                // this _next line is exactly where it needs to be, unless you
                 // like deadlocks.
                 tc->head_cache = tc->head.load(std::memory_order_acquire);
 
@@ -108,7 +108,7 @@ struct ChunkedQueue5 {
 
                 T* elem = std::launder(reinterpret_cast<T*>(
                     hc->buffer.data() + h * sizeof(T)));
-                std::forward<Callable>(f)(std::move(*elem));
+                std::invoke(std::forward<Callable>(f), std::move(*elem));
                 elem->~T();
 
                 h += 1;
@@ -121,7 +121,7 @@ struct ChunkedQueue5 {
 
         T* elem = std::launder(reinterpret_cast<T*>(
             hc->buffer.data() + h * sizeof(T)));
-        std::forward<Callable>(f)(std::move(*elem));
+        std::invoke(std::forward<Callable>(f), std::move(*elem));
         elem->~T();
 
         h += 1;

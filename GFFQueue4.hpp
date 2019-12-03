@@ -36,7 +36,7 @@ struct alignas(64) GFFQueue4 {
         node& n = buffer[h];
         if (n.occupied.load(std::memory_order_acquire) == false) return 0;
         T* elem = std::launder(reinterpret_cast<T*>(n.storage.data()));
-        std::forward<Callable>(f)(std::move(*elem));
+        std::invoke(std::forward<Callable>(f), std::move(*elem));
         elem->~T();
         n.occupied.store(false, std::memory_order_release);
         h += 1;

@@ -41,7 +41,7 @@ struct MCRingBuffer6 {
         if (h == t && h == (tail_cache = tail.load(std::memory_order_acquire)))
             return 0;
         T* elem = std::launder(h);
-        std::forward<Callable>(f)(std::move(*elem));
+        std::invoke(std::forward<Callable>(f), std::move(*elem));
         elem->~T();
         h += 1;
         if (h == reinterpret_cast<T*>(buffer.data() + buffer.max_size()))

@@ -36,7 +36,7 @@ struct alignas(64) GFFQueue3 {
         node& n = buffer[h];
         if (n.occupied == false) return 0;
         T* elem = std::launder(reinterpret_cast<T*>(n.storage.data()));
-        std::forward<Callable>(f)(std::move(*elem));
+        std::invoke(std::forward<Callable>(f), std::move(*elem));
         elem->~T();
         n.occupied = false;
         h += 1;
