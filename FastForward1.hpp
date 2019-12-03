@@ -30,3 +30,4 @@ struct FastForward1 {
         return 1;
     }
 };
+

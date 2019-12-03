@@ -5,6 +5,7 @@
 #include <type_traits>
 #include <array>
 #include <limits>
+#include <memory>
 #include "aligned_alloc.hpp"
 #include "compile_time_utilities.hpp"
 #include "scope_guard.hpp"
@@ -35,11 +36,11 @@ struct alignas(((size_t)1) << _align_log2) spsc_ring_buffer_heap {
         _consume_pos(other._consume_pos.load(std::memory_order_acquire)),
         _produce_pos_cache(other._produce_pos_cache)
     {
-        memcpy(_buffer, other._buffer, size);
+        memcpy(_buffer.get(), other._buffer.get(), size);
     }
 
     spsc_ring_buffer_heap& operator=(const spsc_ring_buffer_heap& other) {
-        memcpy(_buffer, other._buffer, size);
+        memcpy(_buffer.get(), other._buffer.get(), size);
         _produce_pos_cache = other._produce_pos_cache;
         _consume_pos_cache = other._consume_pos_cache;
         _produce_pos = other._produce_pos.load(std::memory_order_acquire);
