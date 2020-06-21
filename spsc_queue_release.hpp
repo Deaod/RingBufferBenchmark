@@ -1,4 +1,4 @@
-/******************************************************************************
+/*******************************************************************************
  Copyright (c) 2019, Lukas Bagaric
  All rights reserved.
 
@@ -21,7 +21,7 @@
  CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
  OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-*******************************************************************************
+********************************************************************************
 
 This file defines a single template, spsc_queue, which implements a bounded
 queue with at most one producer, and one consumer at the same time.
@@ -151,7 +151,7 @@ Interface:
         Callable is an invocable with one parameter of type T*, and a return
         type of bool.
 
-******************************************************************************/
+*******************************************************************************/
 #pragma once
 
 #include <algorithm> // for std::copy_n
@@ -398,12 +398,12 @@ scope_guard<Callable> make_scope_guard(Callable&& f) {
     return scope_guard<Callable>(std::forward<Callable>(f));
 }
 
-template<typename T> constexpr bool is_pow2(T val) {
+template<typename T> constexpr bool is_pow2_f(T val) {
     return (val & (val - 1)) == 0;
 }
 
 template<typename T, T val>
-struct is_pow2_s : std::integral_constant<bool, is_pow2(val)> {};
+struct is_pow2 : std::integral_constant<bool, is_pow2_f(val)> {};
 
 } // namespace detail
 
@@ -425,7 +425,7 @@ private:
     // Abstraction for how to calculate the next index.
     // Uses bit-masking if size is power of 2.
     static size_type _next(size_type index) {
-        if (detail::is_pow2_s<size_type, size>::value) {
+        if (detail::is_pow2<size_type, size>::value) {
             return (index + 1) & (size - 1);
         } else {
             if (index + 1 == size) {
@@ -438,7 +438,7 @@ private:
 
     // Precondition: inc must be smaller than size
     static size_type _next(size_type index, size_type inc) {
-        if (detail::is_pow2_s<size_type, size>::value) {
+        if (detail::is_pow2<size_type, size>::value) {
             return (index + inc) & (size - 1);
         } else {
             size_type next = index + inc;
