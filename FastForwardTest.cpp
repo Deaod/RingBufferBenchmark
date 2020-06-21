@@ -3,6 +3,7 @@
 #include "FastForward3.hpp"
 #include "FastForward4.hpp"
 #include "FastForward5.hpp"
+#include "FastForward6.hpp"
 #include "BenchmarkSupport.hpp"
 #include "Platform.hpp"
 #include <new>
@@ -49,3 +50,4 @@ QUEUE_BENCH_FOR_SIZE(FastForwardTest, FastForward2, 8);
 QUEUE_BENCH_FOR_SIZE(FastForwardTest, FastForward3, 8);
 QUEUE_BENCH_FOR_SIZE(FastForwardTest, FastForward4, 8);
 QUEUE_BENCH_FOR_SIZE(FastForwardTest, FastForward5, 8);
+QUEUE_BENCH_FOR_SIZE(FastForwardTest, FastForward6, 8);

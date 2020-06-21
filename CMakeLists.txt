@@ -40,6 +40,8 @@ add_executable(RingBufferBenchmark
     LamportQueue5.hpp
     LamportQueue6.hpp
     LamportQueue7.hpp
+    LamportQueue8.hpp
+    LamportQueue9.hpp
     LamportQueueTest.cpp
 
     FastForward1.hpp
@@ -47,6 +49,7 @@ add_executable(RingBufferBenchmark
     FastForward3.hpp
     FastForward4.hpp
     FastForward5.hpp
+    FastForward6.hpp
     FastForwardTest.cpp
 
     MCRingBuffer1.hpp
@@ -61,6 +64,7 @@ add_executable(RingBufferBenchmark
     GFFQueue2.hpp
     GFFQueue3.hpp
     GFFQueue4.hpp
+    GFFQueue5.hpp
     GFFQueueTest.cpp
 
     ChunkedQueue1.hpp
@@ -71,6 +75,8 @@ add_executable(RingBufferBenchmark
     ChunkedQueue6.hpp
     ChunkedQueue7.hpp
     ChunkedQueueTest.cpp
+
+    mpmc_queue.hpp
 )
 
 set_property(TARGET RingBufferBenchmark PROPERTY CXX_STANDARD 17)

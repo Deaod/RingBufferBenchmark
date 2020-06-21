@@ -2,6 +2,7 @@
 #include "GFFQueue2.hpp"
 #include "GFFQueue3.hpp"
 #include "GFFQueue4.hpp"
+#include "GFFQueue5.hpp"
 #include "BenchmarkSupport.hpp"
 #include "Platform.hpp"
 #include <new>
@@ -45,3 +46,4 @@ QUEUE_BENCH(GFFQueueTest, GFFQueue1);
 QUEUE_BENCH(GFFQueueTest, GFFQueue2);
 QUEUE_BENCH(GFFQueueTest, GFFQueue3);
 QUEUE_BENCH(GFFQueueTest, GFFQueue4);
+QUEUE_BENCH(GFFQueueTest, GFFQueue5);

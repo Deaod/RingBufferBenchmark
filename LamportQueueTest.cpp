@@ -4,6 +4,8 @@
 #include "LamportQueue5.hpp"
 #include "LamportQueue6.hpp"
 #include "LamportQueue7.hpp"
+#include "LamportQueue8.hpp"
+#include "LamportQueue9.hpp"
 #include "BenchmarkSupport.hpp"
 #include "Platform.hpp"
 #include <new>
@@ -49,3 +51,5 @@ QUEUE_BENCH(LamportQueueTest, LamportQueue4);
 QUEUE_BENCH(LamportQueueTest, LamportQueue5);
 QUEUE_BENCH(LamportQueueTest, LamportQueue6);
 QUEUE_BENCH(LamportQueueTest, LamportQueue7);
+QUEUE_BENCH(LamportQueueTest, LamportQueue8);
+QUEUE_BENCH(LamportQueueTest, LamportQueue9);
