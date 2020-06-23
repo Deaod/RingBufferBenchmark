@@ -5,21 +5,20 @@
 #include <cstddef>
 
 template<typename T, std::size_t SIZE>
-struct MCRingBuffer6 {
+struct MCRingBuffer7 {
     using value_type = T;
+    alignas(128) std::array<std::byte, sizeof(T) * SIZE> buffer;
     alignas(128) std::atomic<T*> tail;
     mutable T* head_cache;
     alignas(128) std::atomic<T*> head;
     mutable T* tail_cache;
-    alignas(128) std::array<std::byte, sizeof(T) * SIZE> buffer;
 
-    MCRingBuffer6() :
+    MCRingBuffer7() :
+        buffer(),
         tail(reinterpret_cast<T*>(buffer.data())),
         head_cache(reinterpret_cast<T*>(buffer.data())),
         head(reinterpret_cast<T*>(buffer.data())),
-        tail_cache(reinterpret_cast<T*>(buffer.data())),
-        buffer()
-    {}
+        tail_cache(reinterpret_cast<T*>(buffer.data())) {}
 
     template<typename... Args>
     int Enqueue(Args&&... args) {

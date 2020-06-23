@@ -4,6 +4,7 @@
 #include "MCRingBuffer4.hpp"
 #include "MCRingBuffer5.hpp"
 #include "MCRingBuffer6.hpp"
+#include "MCRingBuffer7.hpp"
 #include "BenchmarkSupport.hpp"
 #include "Platform.hpp"
 #include <new>
@@ -49,3 +50,4 @@ QUEUE_BENCH(MCRingBufferTest, MCRingBuffer3);
 QUEUE_BENCH(MCRingBufferTest, MCRingBuffer4);
 QUEUE_BENCH(MCRingBufferTest, MCRingBuffer5);
 QUEUE_BENCH(MCRingBufferTest, MCRingBuffer6);
+QUEUE_BENCH(MCRingBufferTest, MCRingBuffer7);

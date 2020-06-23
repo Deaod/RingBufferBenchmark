@@ -7,46 +7,37 @@
 template<typename T, std::size_t SIZE>
 struct MCRingBuffer5 {
     using value_type = T;
-    alignas(128) std::atomic<T*> tail;
-    mutable T* head_cache;
-    alignas(128) std::atomic<T*> head;
-    mutable T* tail_cache;
     alignas(128) std::array<std::byte, sizeof(T) * SIZE> buffer;
-
-    MCRingBuffer5() :
-        tail(reinterpret_cast<T*>(buffer.data())),
-        head_cache(reinterpret_cast<T*>(buffer.data())),
-        head(reinterpret_cast<T*>(buffer.data())),
-        tail_cache(reinterpret_cast<T*>(buffer.data())),
-        buffer()
-    {}
+    alignas(128) std::atomic_size_t tail;
+    mutable size_t head_cache;
+    alignas(128) std::atomic_size_t head;
+    mutable size_t tail_cache;
 
     template<typename... Args>
     int Enqueue(Args&&... args) {
-        T* t = tail.load(std::memory_order_relaxed);
-        T* n = (t + 1);
-        if (n == reinterpret_cast<T*>(buffer.data() + buffer.max_size()))
-            n = reinterpret_cast<T*>(buffer.data());
-        T* h = head_cache;
+        size_t t = tail.load(std::memory_order_relaxed);
+        size_t n = (t + 1);
+        if (n == SIZE) n = 0;
+        size_t h = head_cache;
         if (n == h && n == (head_cache = head.load(std::memory_order_acquire)))
             return 0;
-        new(t) T(std::forward<Args>(args)...);
+        new(buffer.data() + t * sizeof(T)) T(std::forward<Args>(args)...);
         tail.store(n, std::memory_order_release);
         return 1;
     }
 
     template<typename Callable>
     int Dequeue(Callable&& f) {
-        T* h = head.load(std::memory_order_relaxed);
-        T* t = tail_cache;
+        size_t h = head.load(std::memory_order_relaxed);
+        size_t t = tail_cache;
         if (h == t && h == (tail_cache = tail.load(std::memory_order_acquire)))
             return 0;
-        T* elem = std::launder(h);
+        T* elem = std::launder(reinterpret_cast<T*>(
+            buffer.data() + h * sizeof(T)));
         std::invoke(std::forward<Callable>(f), std::move(*elem));
         elem->~T();
         h += 1;
-        if (h == reinterpret_cast<T*>(buffer.data() + buffer.max_size()))
-            h = reinterpret_cast<T*>(buffer.data());
+        if (h == SIZE) h = 0;
         head.store(h, std::memory_order_release);
         return 1;
     }

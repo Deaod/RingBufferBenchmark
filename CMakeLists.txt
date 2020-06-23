@@ -58,6 +58,7 @@ add_executable(RingBufferBenchmark
     MCRingBuffer4.hpp
     MCRingBuffer5.hpp
     MCRingBuffer6.hpp
+    MCRingBuffer7.hpp
     MCRingBufferTest.cpp
 
     GFFQueue1.hpp
